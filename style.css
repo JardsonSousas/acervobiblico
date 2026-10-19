@@ -31,7 +31,7 @@ main{max-width:1100px;margin:auto;padding:16px 18px 60px}
   border-bottom: 1px solid var(--line);
   cursor: pointer;
 }
-/*
+
 /* Fixa a largura do contêiner da capa na lista */
 .row .cv {
   width: 84px;
@@ -48,25 +48,10 @@ main{max-width:1100px;margin:auto;padding:16px 18px 60px}
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   display: block;
 }
-*/
+/*
 .lista .row{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--line);cursor:pointer}
 .row .cv{width:84px;flex:none}.row>div:last-child{flex:1;min-width:0}
 */
-
-/* Configuração de Imagens no Modo Lista */
-.row .cv {
-  width: 90px; /* Largura da capa na lista */
-  flex: none;
-}
-
-.row img, 
-.row .nocover {
-  width: 100%;
-  aspect-ratio: 2 / 3; /* Altere a proporção conforme desejado (ex: 1/1, 3/4) */
-  object-fit: cover;   /* Mantém o enquadramento sem esticar a imagem */
-  border-radius: 6px;
-}
-
 .row h3{margin:0;font-size:1.05rem}.row p{margin:2px 0}
 .bar{height:6px;background:var(--line);border-radius:9px;overflow:hidden;margin:8px 0}
 .bar i{display:block;height:100%;background:var(--acc)}
@@ -193,3 +178,14 @@ body.lock>header,body.lock>#tools,body.lock>main{display:none}
 #af label{font-size:.85rem;color:var(--mute)}#af label input{margin-top:3px;color:var(--ink);font-size:1rem}
 #ae{color:var(--bad);min-height:1.2em;font-size:.9rem}
 .acts{align-items:center}#who{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- lista: proporção configurável, ícones, seleção ---------- */
+.row .cv{width:var(--cvw,84px);flex:none}
+.row .cv img,.row .cv .nocover{width:100%;aspect-ratio:var(--cvar,2/3);object-fit:var(--cvfit,cover)}
+.row .rb{flex:1;min-width:0}
+.meta{display:flex;flex-wrap:wrap;gap:4px 16px;margin:6px 0;color:var(--mute);font-size:.85rem}
+.meta span{display:inline-flex;align-items:center;gap:6px}
+.ic{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.card.sel,.row.sel{outline:3px solid var(--acc);outline-offset:4px;border-radius:8px}
+#selact[hidden]{display:none!important}
+#amzr{display:grid;gap:4px;margin-top:8px}#amzr button{text-align:left}
