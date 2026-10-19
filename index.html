@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Acervo Bíblico</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <h1>Acervo Bíblico <small id="total"></small></h1>
+  <div class="acts"><span id="who" class="m"></span><button id="add" class="pri">Novo item</button><button id="bk">Backup</button><button id="out">Sair</button></div>
+  <nav id="tabs">
+    <button data-v="livros">Acervo</button><button data-v="explorar">Explorar</button><button data-v="desejos">Lista de desejo</button>
+    <button data-v="prateleiras">Prateleiras</button><button data-v="etiquetas">Etiquetas</button>
+    <button data-v="stats">Estatísticas</button><button data-v="metas">Metas de leitura</button>
+  </nav>
+</header>
+
+<section id="tools" class="tools">
+  <input id="q" type="search" placeholder="Buscar título, autor, ISBN ou etiqueta" aria-label="Buscar">
+  <select id="ftp" aria-label="Tipo"><option value="">Livros e revistas</option><option value="livro">Só livros</option><option value="revista">Só revistas</option></select>
+  <select id="so" aria-label="Ordenar">
+    <option value="added">Mais recentes</option><option value="title">Título</option><option value="author">Autor</option>
+    <option value="rating">Melhor avaliados</option><option value="year">Ano de publicação</option>
+  </select>
+  <button id="vm">Ver em lista</button>
+  <button id="rnd">Escolher o próximo livro</button>
+  <span id="cnt" class="m"></span>
+  <div id="stbar" class="stbar" role="group" aria-label="Status de leitura" hidden></div>
+  <div id="exp" class="exp" hidden>
+    <select id="prov" aria-label="Fonte da busca online"><option value="google">Google Livros</option><option value="ol">Open Library</option></select>
+    <label class="ck2"><input type="checkbox" id="pt" checked> Só português</label>
+    <button id="srch" class="pri">Buscar na internet</button>
+    <button id="addcat">Novo no catálogo</button>
+    <span id="hitbar"></span>
+  </div>
+  <details id="adv"><summary>Mais filtros: autor, tradutor, editora, ano, categoria, etiqueta…</summary><div id="facets" class="facets"></div></details>
+</section>
+
+<main id="main"></main>
+<dialog id="dlg"></dialog>
+<input type="file" id="fileImp" accept=".json,.csv,.xlsx,.xls" hidden>
+<div id="toast" role="status"></div>
+<div id="auth" hidden>
+  <form id="af"><h2>Acervo Bíblico</h2><p id="am" class="m"></p>
+    <label>E-mail<input type="email" name="email" autocomplete="username" required></label>
+    <label>Senha<input type="password" name="pw" autocomplete="current-password" required></label>
+    <button class="pri">Entrar</button><p id="ae" role="alert"></p></form>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
