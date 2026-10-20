@@ -103,7 +103,7 @@ const card=b=>mode!=="grade"?rowHtml(b):mode==="grade"
     <p class="m">${b.tipo==="revista"?"Revista · ":""}${view==="explorar"?"":status(b)}${b.pages?" · "+b.pages+" p.":""}${b.publisher?" · "+esc(b.publisher):""}${b.pubDate?" · "+esc(b.pubDate):""}${b.shelf?" · "+esc(b.shelf):""}</p>
     <p>${badge(b)}${(b.tags||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</p></div></article>`;
 
-function render(){chrome();
+function render(){chrome();renderSide();
   const bk=own().filter(b=>b.tipo!=="revista").length;
   const rv=own().length-bk;$("#total").textContent=!user?"":`${bk} ${bk===1?"livro":"livros"} · ${rv} ${rv===1?"revista":"revistas"}`;
   $$("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===view));
@@ -254,7 +254,7 @@ async function save(f,id,old,store,refs){
 }
 async function lookup(f){
   const isbn=digits(f.elements.isbn.value);if(!isbn)return toast("Digite o ISBN primeiro");
-  try{const it=(await PROV.google.q("isbn:"+isbn,false))[0];if(!it)return toast("ISBN não encontrado");
+  try{const it=await byIsbn(isbn.length===10?i10to13(isbn):isbn);if(!it)return toast("ISBN não encontrado em nenhuma base");
     const set=(k,x)=>{if(x&&f.elements[k]&&!f.elements[k].value)f.elements[k].value=x};
     ["title","subtitle","authors","publisher","pages","pubDate","language","categories","description"].forEach(k=>set(k,it[k]));
     if(it.cover){set("coverUrl",it.cover);f.elements.coverUrl.dispatchEvent(new Event("input"))}
@@ -577,7 +577,7 @@ function cfgDlg(){const d=$("#dlg");d.className="";
   try{localStorage.setItem("lc",JSON.stringify(LC))}catch{}applyLC();render()};
  d.oninput=go;$("#cfok").onclick=()=>{d.oninput=null;d.close()}}
 function chrome(){const ex=view==="explorar",can=(user&&(view==="livros"||view==="desejos"))||(ex&&admin);
- $("#in").hidden=!!user;$("#out").hidden=!user;$("#add").hidden=!user;$("#bk").hidden=!user;$("#rnd").hidden=!user;
+ $("#addi").hidden=!user;$("#sidb").hidden=!["livros","desejos","explorar"].includes(view);$("#in").hidden=!!user;$("#out").hidden=!user;$("#add").hidden=!user;$("#bk").hidden=!user;$("#rnd").hidden=!user;
  $$("#tabs button").forEach(b=>b.hidden=!user&&b.dataset.v!=="explorar");
  if(!can){selMode=false;sel.clear()}
  $("#selb").hidden=!can;$("#selact").hidden=!selMode;$("#selb").textContent=selMode?"Sair da seleção":"Selecionar";$("#cfg").hidden=mode!=="lista"}
@@ -616,7 +616,7 @@ async function amazon(f){const u=f.elements.buyUrl.value.trim();if(!u)return toa
  const p=amzParse(u);if(!p)return toast("Esse não parece um link completo da Amazon (links curtos amzn.to não funcionam: abra e copie o endereço da barra)");
  const box=$("#amzr");box.innerHTML="";toast("Buscando…");
  try{let its=[];
-  if(/^\d{9}[\dX]$/.test(p.asin)){const n=i10to13(p.asin);its=await PROV.google.q("isbn:"+n,false);if(!its.length)its=await PROV.ol.q("isbn:"+n,false);
+  if(/^\d{9}[\dX]$/.test(p.asin)){const n=i10to13(p.asin);const one=await byIsbn(n);its=one?[one]:[];
    if(its[0]){fillForm(f,its[0]);return toast("Dados preenchidos pelo ISBN do link. Confira antes de salvar.")}}
   if(!p.slug)return toast("Não consegui identificar o livro nesse link (e-book Kindle sem título no endereço). Use o ISBN ou o título.");
   its=(await PROV.google.q(p.slug,false)).slice(0,6);if(!its.length)return toast("Nada encontrado para esse link");
@@ -625,11 +625,62 @@ async function amazon(f){const u=f.elements.buyUrl.value.trim();if(!u)return toa
  }catch{toast("Não consegui buscar. Verifique a conexão.")}}
 applyLC();
 
+/* ---------- Entrada rápida: BrasilAPI, ISBN em lote, câmera, favorito da Amazon, menu lateral ---------- */
+PROV.br={n:"BrasilAPI",async q(t){const m=String(t).match(/\d{10,13}/);if(!m)return[];const r=await fetch("https://brasilapi.com.br/api/isbn/v1/"+m[0]);if(!r.ok)return[];const v=await r.json();
+ return [{title:v.title,subtitle:v.subtitle||"",authors:(v.authors||[]).join("; "),publisher:v.publisher||"",pubDate:String(v.year||""),pages:v.page_count||"",isbn:v.isbn||m[0],categories:(v.subjects||[]).join("; "),language:"",description:v.synopsis||"",cover:v.cover_url||"",city:v.location||"",src:"BrasilAPI"}].filter(x=>x.title)}};
+const byIsbn=async n=>{for(const k of ["br","google","ol"]){try{const r=await PROV[k].q(k==="br"?n:"isbn:"+n,false);if(r[0])return r[0]}catch{}}return null};
+async function isbnAdd(txt,wish){const l=[...new Set(txt.split(/[\s,;]+/).map(digits).filter(x=>x.length===10||x.length===13))].map(x=>x.length===10?i10to13(x):x);
+ if(!l.length)return toast("Nenhum ISBN válido");const arr=[];let miss=0,dup=0,i=0;
+ for(const n of l){toast(`Buscando ${++i}/${l.length}…`);if(IDX.isbn.get(n)){dup++;continue}
+  let c=catalog.find(x=>digits(x.isbn)===n);
+  if(!c){const it=await byIsbn(n);if(it){c={tipo:"livro",added:today(),...it,isbn:n};delete c.src;try{c.id=await store("catalog").add(c);catalog.push(c)}catch{c=null}}}
+  if(c)arr.push(toBook(c,{wish})) ;else{miss++;arr.push({tipo:"livro",title:"ISBN "+n+" (completar dados)",isbn:n,copies:1,added:today(),tags:[],wish,purchases:[]})}}
+ if(arr.length)await store("books").addMany(arr);$("#dlg").close();await load();
+ toast(`${arr.length} adicionados${miss?`, ${miss} sem dados (complete na edição)`:""}${dup?`, ${dup} já existiam`:""}`)}
+async function scan(ta){if(!("BarcodeDetector" in window))return toast("Este navegador não lê código de barras. Use o Chrome no celular ou digite o ISBN.");
+ let st;try{st=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}})}catch{return toast("Sem acesso à câmera")}
+ const v=document.createElement("video");v.srcObject=st;v.setAttribute("playsinline","");v.muted=true;await v.play();
+ const box=$("#scv");box.innerHTML="";box.append(v);box.insertAdjacentHTML("beforeend",'<button type="button" id="scx">Parar câmera</button>');
+ let on=true;$("#scx").onclick=()=>on=false;const bd=new BarcodeDetector({formats:["ean_13"]}),seen=new Set(ta.value.split(/\s+/));
+ while(on&&$("#dlg").open&&$("#scv")){try{for(const c of await bd.detect(v)){const t=c.rawValue;if(/^97[89]\d{10}$/.test(t)&&!seen.has(t)){seen.add(t);ta.value=(ta.value.trim()+"\n"+t).trim();toast("Lido: "+t)}}}catch{}await new Promise(r=>setTimeout(r,300))}
+ st.getTracks().forEach(t=>t.stop());if($("#scv"))$("#scv").innerHTML=""}
+/* favorito que lê a página da Amazon no seu navegador (como o conector do Zotero) */
+const BM=APP=>"javascript:"+encodeURIComponent("("+function(A){try{
+ var t=function(s){var e=document.querySelector(s);return e?e.textContent.replace(/\s+/g," ").trim():""},b=document.body.innerText,m=function(r){var x=b.match(r);return x?x[1].trim():""};
+ var d={title:t("#productTitle")||t("#ebooksProductTitle"),
+  authors:[].slice.call(document.querySelectorAll("#bylineInfo .author a.a-link-normal,.author .a-link-normal")).map(function(a){return a.textContent.trim()}).filter(function(x,i,a){return x&&a.indexOf(x)===i}).join("; "),
+  isbn:m(/ISBN-13[\s\u200e\u200f:]*([\d-]{13,17})/i).replace(/\D/g,""),publisher:m(/(?:Editora|Publisher)[\s\u200e\u200f:]*([^\n;(]+)/i),pages:m(/(\d+)\s*p[áa]ginas/i),
+  language:m(/(?:Idioma|Language)[\s\u200e\u200f:]*([^\n]+)/i),pubDate:m(/(?:Editora|Publisher)[^\n]*?(\d{4})/i),
+  description:(document.querySelector("#bookDescription_feature_div")||{innerText:""}).innerText.trim().slice(0,1200),
+  cover:(document.querySelector("#landingImage,#imgBlkFront,#ebooksImgBlkFront")||{}).src||"",buyUrl:location.origin+location.pathname};
+ window.open(A+"#add="+encodeURIComponent(JSON.stringify(d)))}catch(e){alert("Não consegui ler esta página da Amazon.")}}.toString()+")("+JSON.stringify(APP)+")");
+let pend=null;
+(()=>{const m=location.hash.match(/^#add=(.+)/);if(!m)return;
+ try{const d=JSON.parse(decodeURIComponent(m[1])),o={};["title","authors","isbn","publisher","pages","language","pubDate","description","cover","buyUrl"].forEach(k=>{if(d[k]!=null&&d[k]!=="")o[k]=k==="pages"?(Number(d[k])||""):String(d[k]).slice(0,3000)});
+  ["cover","buyUrl"].forEach(k=>{if(o[k]&&!/^https:\/\//i.test(o[k]))delete o[k]});if(o.title)pend=o}catch{}
+ history.replaceState(null,"",location.pathname+location.search)})();
+const takePend=()=>{if(!pend)return;const o=pend;pend=null;edit(null,"books",{tipo:"livro",copies:1,added:today(),tags:[],wish:false,purchases:[{store:"Amazon"}],...o})};
+function quick(){const d=$("#dlg"),APP=location.origin+location.pathname;d.className="";
+ d.innerHTML=`<h2>Adicionar livros rápido</h2><p class="m">Digite ou escaneie os ISBNs (um por linha). O app procura no catálogo compartilhado, na BrasilAPI (CBL e Mercado Editorial), no Google Livros e na Open Library. O que não for achado entra só com o ISBN, para você completar.</p>
+ <textarea id="qi" rows="6" placeholder="9788527300000"></textarea><div id="scv"></div>
+ <label class="ck2"><input type="checkbox" id="qw"> Adicionar à lista de desejo</label>
+ <div class="ft"><button type="button" id="qs">Escanear código de barras</button><span class="sp"></span><button type="button" id="qx">Fechar</button><button type="button" id="qg" class="pri">Buscar e adicionar</button></div>
+ <fieldset><legend>Pela página da Amazon</legend><p class="m">Arraste o botão abaixo para a barra de favoritos. Depois, em qualquer livro da Amazon, clique nele: os dados vêm para cá e você só confere e salva.</p><p><a class="chip on" href="${esc(BM(APP))}" onclick="return false">Enviar para o Acervo</a></p></fieldset>`;
+ d.showModal();$("#qx").onclick=()=>d.close();$("#qs").onclick=()=>scan($("#qi"));$("#qg").onclick=()=>isbnAdd($("#qi").value,$("#qw").checked)}
+$("#addi").onclick=quick;
+/* menu lateral de categorias e etiquetas */
+let sideOn=innerWidth>=900;
+function renderSide(){const s=$("#side"),on=["livros","desejos","explorar"].includes(view)&&sideOn;s.hidden=!on;if(!on)return;const P=pool(),
+ mk=(k,t,m)=>m.size?`<h3>${t}</h3>`+[...m].map(([v,c])=>`<button type="button" class="sb${F[k]===v?" on":""}" data-sf="${k}" data-v="${esc(v)}"><span>${esc(v)}</span><b>${c}</b></button>`).join(""):"";
+ s.innerHTML=`<button type="button" class="sb${!F.category&&!F.tag?" on":""}" data-sf="">Tudo</button>`+mk("category","Categorias",tally(P.flatMap(b=>sp(b.categories))))+(view==="explorar"?"":mk("tag","Etiquetas",tally(P.flatMap(b=>b.tags||[]))))}
+$("#side").onclick=e=>{const t=e.target.closest("[data-sf]");if(!t)return;const k=t.dataset.sf;F.category="";F.tag="";if(k)F[k]=t.dataset.v;F.hits=null;render()};
+$("#sidb").onclick=()=>{sideOn=!sideOn;render()};
+
 /* ---------- Login e inicialização ---------- */
 const authBox=(msg,err)=>{$("#auth").hidden=false;$("#am").textContent=msg||"";$("#ae").textContent=err||""};
 const enter=async u=>{user=u;document.body.classList.remove("lock");$("#auth").hidden=true;$("#who").textContent=u.email||"";$("#af").reset();
   await load();
-  try{if(!books.length&&!catalog.length&&!goals.length){const o=await localData();
+  takePend();try{if(!books.length&&!catalog.length&&!goals.length){const o=await localData();
     if(o&&confirm(`Encontrei ${o.books.length} itens e ${o.catalog.length} no catálogo salvos neste navegador. Enviar para a nuvem agora?`))await migrateLocal(o)}}catch{}};
 $("#af").onsubmit=async e=>{e.preventDefault();const f=e.target,b=f.querySelector("button");b.disabled=true;$("#ae").textContent="";
   const cr={email:f.email.value.trim(),password:f.pw.value},r=signup?await sb.auth.signUp(cr):await sb.auth.signInWithPassword(cr);b.disabled=false;
@@ -645,5 +696,5 @@ async function start(){
   sb=supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY);
   sb.auth.onAuthStateChange(ev=>{if(ev==="SIGNED_OUT"){user=null;books=[];catalog=[];goals=[];$("#dlg").open&&$("#dlg").close();view="explorar";admin=false;load()}});
   const {data}=await sb.auth.getSession();
-  data.session?enter(data.session.user):(view="explorar",load())}
+  data.session?enter(data.session.user):(view="explorar",load().then(()=>pend&&need()))}
 start();

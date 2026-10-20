@@ -189,3 +189,15 @@ body.lock>header,body.lock>#tools,body.lock>main{display:none}
 .card.sel,.row.sel{outline:3px solid var(--acc);outline-offset:4px;border-radius:8px}
 #selact[hidden]{display:none!important}
 #amzr{display:grid;gap:4px;margin-top:8px}#amzr button{text-align:left}
+
+/* ---------- menu lateral e entrada rápida ---------- */
+.wrap{max-width:1100px;margin:auto;padding:0 18px;display:flex;gap:20px;align-items:flex-start}
+.wrap main{flex:1;min-width:0;max-width:none;margin:0;padding:16px 0 60px}
+#side{flex:0 0 220px;position:sticky;top:8px;max-height:calc(100vh - 16px);overflow:auto;padding:16px 0}
+#side h3{font:600 .75rem system-ui;text-transform:uppercase;letter-spacing:.05em;color:var(--mute);margin:14px 0 4px}
+.sb{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;border:0;background:none;border-radius:6px;padding:5px 8px}
+.sb span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sb b{font-weight:400;color:var(--mute)}
+.sb:hover{background:var(--card)}.sb.on{background:var(--acc);color:var(--onacc)}.sb.on b{color:inherit}
+@media(max-width:899px){.wrap{flex-direction:column;gap:0}#side{position:static;flex:none;width:100%;max-height:200px;border-bottom:1px solid var(--line)}}
+#scv video{width:100%;max-height:260px;border-radius:8px;margin-top:8px;background:#000}
+#qi{margin-top:6px}

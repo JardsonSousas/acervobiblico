@@ -9,7 +9,7 @@
 <body>
 <header class="top">
   <h1>Acervo Bíblico <small id="total"></small></h1>
-  <div class="acts"><span id="who" class="m"></span><button id="in" class="pri" hidden>Entrar</button><button id="add" class="pri">Novo item</button><button id="bk">Backup</button><button id="out">Sair</button></div>
+  <div class="acts"><span id="who" class="m"></span><button id="in" class="pri" hidden>Entrar</button><button id="add" class="pri">Novo item</button><button id="addi" hidden>Adicionar por ISBN</button><button id="bk">Backup</button><button id="out">Sair</button></div>
   <nav id="tabs">
     <button data-v="livros">Acervo</button><button data-v="explorar">Explorar</button><button data-v="desejos">Lista de desejo</button>
     <button data-v="prateleiras">Prateleiras</button><button data-v="etiquetas">Etiquetas</button>
@@ -26,7 +26,7 @@
   </select>
   <button id="vm">Ver em lista</button>
   <button id="rnd">Escolher o próximo livro</button>
-  <span id="cnt" class="m"></span><button id="selb" hidden>Selecionar</button><button id="cfg" hidden>Ajustes da lista</button>
+  <span id="cnt" class="m"></span><button id="sidb" hidden>Categorias e etiquetas</button><button id="selb" hidden>Selecionar</button><button id="cfg" hidden>Ajustes da lista</button>
   <span id="selact" hidden style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span id="selc" class="m"></span><button id="sela">Selecionar todos</button><button id="selm" class="pri">Editar em massa</button><button id="seld" class="dg">Excluir</button></span>
   <div id="stbar" class="stbar" role="group" aria-label="Status de leitura" hidden></div>
   <div id="exp" class="exp" hidden>
@@ -39,7 +39,7 @@
   <details id="adv"><summary>Mais filtros: autor, tradutor, editora, ano, categoria, etiqueta…</summary><div id="facets" class="facets"></div></details>
 </section>
 
-<main id="main"></main>
+<div class="wrap"><aside id="side" hidden aria-label="Categorias e etiquetas"></aside><main id="main"></main></div>
 <dialog id="dlg"></dialog>
 <input type="file" id="fileImp" accept=".json,.csv,.xlsx,.xls" hidden>
 <div id="toast" role="status"></div>
