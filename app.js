@@ -7,12 +7,14 @@ const money=n=>n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const today=()=>new Date().toISOString().slice(0,10);
 const same=b=>norm([b.tipo||"livro",b.title,b.tipo==="revista"?[b.number,b.volume,b.month,b.pubDate].join("/"):b.authors].join("|"));
 /* filtros: [chave, rótulo, função que extrai os valores de cada item] */
-const FAC=[["shelf","Prateleira",b=>[b.shelf]],["author","Autor",b=>sp(b.authors).map(x=>nice(x))],["translator","Tradutor",b=>sp(b.translators)],
+const FAC=[["shelf","Prateleira",b=>[b.shelf]],["author","Autor / Organizador",b=>[...sp(b.authors),...sp(b.editors)].map(x=>nice(x))],["translator","Tradutor",b=>sp(b.translators)],
 ["contrib","Organizador / ilustrador",b=>[...sp(b.editors),...sp(b.illustrators)]],["publisher","Editora",b=>[b.publisher]],["year","Ano de publicação",b=>[String(b.pubDate||"")]],["collection","Coleção",b=>[b.collection]],
 ["category","Categoria",b=>sp(b.categories)],["tag","Etiqueta",b=>b.tags||[]]];
 let db,books=[],goals=[],catalog=[],view="livros",mode="grade",shelfMode="estante",impMode="add",impDest="books",F={q:"",tipo:"",status:"",sort:"added",hits:null};
 FAC.forEach(([k])=>F[k]="");
 let cur=null,stack=[],IDX={isbn:new Map(),cat:new Map(),key:new Map()};
+
+
 
 /* ---------- Banco de dados (Supabase) ----------
    Cada tabela (books, catalog, goals) guarda: id, user_id (dono) e data (o item em JSON).
@@ -297,7 +299,11 @@ const byTitle=(x,y)=>String(x.r.title).localeCompare(String(y.r.title),"pt-BR",{
 const vnum=e=>parseFloat((String(e.r.series||"").match(/\d+(?:[.,]\d+)?/)||[""])[0].replace(",","."))||1e9;
 const byVol=(x,y)=>vnum(x)-vnum(y)||byTitle(x,y);
 const byEdition=(x,y)=>(parseInt(y.r.pubDate)||0)-(parseInt(x.r.pubDate)||0)||(parseFloat(y.r.number)||0)-(parseFloat(x.r.number)||0);
-/* grupos de "mais livros": um por autor (até 3) e um da coleção */
+
+
+
+
+/* grupos de "mais livros": um por autor/organizador (até 3) e um da coleção */
 function related(s,r){
   const me=same(r),mine=s==="c"?ownedOf(r):null,out=[];
   const rest=everything().filter(e=>e.r!==r&&e.r!==mine&&same(e.r)!==me);
@@ -307,13 +313,19 @@ function related(s,r){
     return out}
   const eds=everything().filter(e=>e.r!==r&&e.r!==mine&&same(e.r)===me).sort(byEdition);
   if(eds.length)out.push({h:"Outras edições",l:eds,k:"ed2"});
-  sp(r.authors).slice(0,3).forEach(a=>{const k=akey(a),
-    l=rest.filter(e=>e.r.tipo!=="revista"&&sp(e.r.authors).some(x=>akey(x)===k)).sort(byTitle);
-    if(l.length)out.push({h:`Mais livros de ${nice(a)}`,l,k:"au"})});
+  
+  // Unimos autores e organizadores/editores únicos para o link de "mais livros de..."
+  const creators = [...new Set([...sp(r.authors), ...sp(r.editors)])];
+  creators.slice(0,3).forEach(a=>{const k=akey(a),
+    l=rest.filter(e=>e.r.tipo!=="revista"&&(sp(e.r.authors).some(x=>akey(x)===k)||sp(e.r.editors).some(x=>akey(x)===k))).sort(byTitle);
+    if(l.length)out.push({h:`Mais obras de ${nice(a)}`,l,k:"au"})});
+    
   if(r.collection){const k=ckey(r.collection),
     l=rest.filter(e=>e.r.tipo!=="revista"&&e.r.collection&&ckey(e.r.collection)===k).sort(byVol);
     if(l.length)out.push({h:`Outros livros da coleção ${r.collection}`,l,k:"co"})}
   return out}
+
+
 const where=e=>e.s==="c"?"Catálogo":e.r.wish?"Lista de desejo":"No acervo";
 const rc=(e,kind)=>{const r=e.r,v=kind==="co"&&r.series?volTxt(r.series):kind==="ed2"?[r.publisher,r.pubDate].filter(Boolean).join(" · "):r.tipo==="revista"?[r.number&&"nº "+r.number,r.pubDate].filter(Boolean).join(" · "):(r.pubDate||"");
   return `<button type="button" class="pprc" data-open="${e.s}:${r.id}" title="${esc(r.title)}"><span class="pprv">${cover(r)}</span><span class="pprt">${esc(r.title)}</span>${v?`<span class="pprg">${esc(v)}</span>`:""}<span class="pprg${e.s==="b"?" in":""}">${where(e)}</span></button>`};
@@ -331,7 +343,12 @@ function paint(s,id){
   const d=$("#dlg"),B=s==="b",rev=r.tipo==="revista",o=B?null:ownedOf(r),E=esc;
   const chips=[rev?"Revista":"Livro",B?(r.wish?"Lista de desejo":status(r)):"Catálogo"].map(x=>`<span class="chip">${x}</span>`).join("")
     +(o?`<span class="chip on">${o.wish?"Na lista de desejo":"No acervo"}</span>`:"");
-  const by=rev?"":sp(r.authors).map(a=>`<button type="button" class="lk ppau" data-filter="author:${E(nice(a))}" title="Ver os livros de ${E(nice(a))} nesta lista">${E(nice(a))}</button>`).join(", ");
+  // const by=rev?"":sp(r.authors).map(a=>`<button type="button" class="lk ppau" data-filter="author:${E(nice(a))}" title="Ver os livros de ${E(nice(a))} nesta lista">${E(nice(a))}</button>`).join(", ");
+  
+  const authorsList = sp(r.authors).map(a=>`<button type="button" class="lk ppau" data-filter="author:${E(nice(a))}" title="Ver as obras de ${E(nice(a))}">${E(nice(a))}</button>`);
+  const editorsList = sp(r.editors).map(e=>`<button type="button" class="lk ppau" data-filter="author:${E(nice(e))}" title="Ver as obras organizadas por ${E(nice(e))}">${E(nice(e))} (Org.)</button>`);
+  const by=rev?"":[...authorsList, ...editorsList].join(", ");
+
   const showProg=B&&!r.wish&&(r.end||r.pagesRead>0);
   const info=[["Tradutores",E(L(r.translators))],["Organizadores / editores",E(L(r.editors))],["Ilustradores",E(L(r.illustrators))],["Outros colaboradores",E(r.contrib)],
     ["Editora",E(r.publisher)],["Local",E(r.city)],["Edição",E(r.edition)],["Número",E(r.number)],["Volume",E(r.volume)],["Mês",E(r.month)],["Periodicidade",E(r.periodicity)],
