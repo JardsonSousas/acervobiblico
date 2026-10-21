@@ -201,3 +201,6 @@ body.lock>header,body.lock>#tools,body.lock>main{display:none}
 @media(max-width:899px){.wrap{flex-direction:column;gap:0}#side{position:static;flex:none;width:100%;max-height:200px;border-bottom:1px solid var(--line)}}
 #scv video{width:100%;max-height:260px;border-radius:8px;margin-top:8px;background:#000}
 #qi{margin-top:6px}
+
+.pch{color:var(--acc);width:100%;max-height:170px;margin:8px 0}
+.chip.lan{background:#2f7d4f;border-color:#2f7d4f}

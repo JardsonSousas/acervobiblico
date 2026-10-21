@@ -12,7 +12,7 @@
   <div class="acts"><span id="who" class="m"></span><button id="in" class="pri" hidden>Entrar</button><button id="add" class="pri">Novo item</button><button id="addi" hidden>Adicionar por ISBN</button><button id="bk">Backup</button><button id="out">Sair</button></div>
   <nav id="tabs">
     <button data-v="livros">Acervo</button><button data-v="explorar">Explorar</button><button data-v="desejos">Lista de desejo</button>
-    <button data-v="prateleiras">Prateleiras</button><button data-v="etiquetas">Etiquetas</button>
+    <button data-v="autores">Autores</button><button data-v="prateleiras">Prateleiras</button><button data-v="etiquetas">Etiquetas</button>
     <button data-v="stats">Estatísticas</button><button data-v="metas">Metas de leitura</button>
   </nav>
 </header>
@@ -20,10 +20,7 @@
 <section id="tools" class="tools">
   <input id="q" type="search" placeholder="Buscar título, autor, ISBN ou etiqueta" aria-label="Buscar">
   <select id="ftp" aria-label="Tipo"><option value="">Livros e revistas</option><option value="livro">Só livros</option><option value="revista">Só revistas</option></select>
-  <select id="so" aria-label="Ordenar">
-    <option value="added">Mais recentes</option><option value="title">Título</option><option value="author">Autor</option>
-    <option value="rating">Melhor avaliados</option><option value="year">Ano de publicação</option>
-  </select>
+  <select id="so" aria-label="Ordenar"><option value="added">Adição: mais recentes</option><option value="added_a">Adição: mais antigos</option><option value="title">Título A–Z</option><option value="title_d">Título Z–A</option><option value="author">Autor A–Z</option><option value="publisher">Editora A–Z</option><option value="year">Publicação: mais novos</option><option value="year_a">Publicação: mais antigos</option><option value="pdate">Compra: mais recentes</option><option value="pdate_a">Compra: mais antigas</option><option value="rating">Melhor avaliados</option></select>
   <button id="vm">Ver em lista</button>
   <button id="rnd">Escolher o próximo livro</button>
   <span id="cnt" class="m"></span><button id="sidb" hidden>Categorias e etiquetas</button><button id="selb" hidden>Selecionar</button><button id="cfg" hidden>Ajustes da lista</button>
