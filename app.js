@@ -347,7 +347,7 @@ function paint(s,id){
   const meta=[r.pages&&r.pages+" páginas",r.pubDate&&"publicado em "+r.pubDate,neds&&(neds+1)+" edições no catálogo"].filter(Boolean).join(" · ");
   const subj=[...sp(r.categories).map(v=>["category",v]),...(B?(r.tags||[]).map(v=>["tag",v]):[])];
   const subjHtml=subj.length?`<p class="ppsu">${subj.map(([k,v])=>`<button type="button" class="chip" data-filter="${k}:${E(v)}">${E(v)}</button>`).join("")}</p>`:"";
-  const foot=B?`${r.wish?'<button type="button" class="pri" data-act="own">Já tenho: mover para o acervo</button>':""}<span class="sp"></span><button type="button" class="${r.wish?"":"pri"}" data-act="edit">Editar</button>`
+  const foot=B?`${r.wish?'<button type="button" class="pri" data-act="own">Já tenho: mover para o acervo</button>':""}<span class="sp"></span><button type="button" data-act="copycat" title="Cria (ou atualiza) este livro no catálogo compartilhado">Copiar para o catálogo</button><button type="button" class="${r.wish?"":"pri"}" data-act="edit">Editar</button>`
     :`${admin?'<button type="button" class="dg" data-act="del">Remover do catálogo</button><button type="button" data-act="edit">Editar dados</button>':""}<span class="sp"></span>${o?'<button type="button" class="pri" data-act="owned">Abrir no '+(o.wish?"lista de desejo":"acervo")+"</button>":'<button type="button" data-act="wish">Lista de desejo</button><button type="button" class="pri" data-act="add">Adicionar ao acervo</button>'}`;
   const key=s+":"+id,cited=[...books.map(x=>["b:"+x.id,x]),...(s==="c"?catalog.map(x=>["c:"+x.id,x]):[])].filter(([k,x])=>k!==key&&(x.refs||[]).some(z=>z.k===key));
   d.className="pop";
@@ -386,6 +386,7 @@ async function popClick(e){
   if(a==="back"){const p=stack.pop();return p&&paint(p.s,p.id)}
   if(!cur)return;const {s,id}=cur,r=(s==="b"?books:catalog).find(x=>x.id===id);if(!r)return;
   if(a==="price")return priceDlg(s,id,r);
+  if(a==="copycat"){if(s==="b"&&need()){await copyToCat([r]);paint(s,id)}return}
   if(["wish","add","own"].includes(a)&&!need())return;
   if(a==="edit")edit(id,s==="b"?"books":"catalog",null,{s,id});
   if(a==="own"){await rq(st("books","readwrite").put({...r,wish:false}));await load();paint(s,id);toast("Movido para o acervo")}
@@ -584,7 +585,7 @@ function chrome(){const ex=view==="explorar",can=(user&&(view==="livros"||view==
  $("#addi").hidden=!user;$("#sidb").hidden=!["livros","desejos","explorar"].includes(view);$("#in").hidden=!!user;$("#out").hidden=!user;$("#add").hidden=!user;$("#bk").hidden=!user;$("#rnd").hidden=!user;
  $$("#tabs button").forEach(b=>b.hidden=!user&&!["explorar","autores"].includes(b.dataset.v));
  if(!can){selMode=false;sel.clear()}
- $("#selb").hidden=!can;$("#selact").hidden=!selMode;$("#selb").textContent=selMode?"Sair da seleção":"Selecionar";$("#cfg").hidden=mode!=="lista"}
+ $("#selb").hidden=!can;$("#selcat").hidden=view==="explorar";$("#selact").hidden=!selMode;$("#selb").textContent=selMode?"Sair da seleção":"Selecionar";$("#cfg").hidden=mode!=="lista"}
 const markSel=()=>{$$("#main [data-id]").forEach(e=>e.classList.toggle("sel",selMode&&sel.has(+e.dataset.id)));$("#selc").textContent=sel.size+" selecionado(s)"};
 function bulk(){const ex=view==="explorar",ids=[...sel];if(!ids.length)return toast("Selecione itens primeiro");
  const FD=[["categories","Categorias",1],["tags","Etiquetas",1],["authors","Autores",1],["translators","Tradutores",1],["shelf","Prateleira"],["publisher","Editora"],["format","Formato"],["language","Idioma"],["collection","Coleção"],["city","Local"],["pubDate","Ano"]].filter(([k])=>!(ex&&(k==="tags"||k==="shelf"))),d=$("#dlg");
@@ -597,7 +598,8 @@ function bulk(){const ex=view==="explorar",ids=[...sel];if(!ids.length)return to
   if(ex)it.forEach(b=>b.sy=1);await store(ex?"catalog":"books").putMany(it);if(!ex){toast("Sincronizando com a biblioteca…");for(const b of it)await pushCat(b)}d.close();sel.clear();selMode=false;load();toast(`${it.length} itens atualizados`)}}
 $("#selb").onclick=()=>{selMode=!selMode;sel.clear();render()};
 $("#sela").onclick=()=>{filtered().forEach(b=>sel.add(b.id));markSel()};
-$("#selm").onclick=bulk;$("#cfg").onclick=cfgDlg;
+$("#selm").onclick=bulk;
+$("#selcat").onclick=async()=>{const l=books.filter(b=>sel.has(b.id));if(!l.length)return toast("Selecione itens primeiro");await copyToCat(l);sel.clear();selMode=false;render()};$("#cfg").onclick=cfgDlg;
 $("#seld").onclick=async()=>{const ids=[...sel];if(!ids.length)return toast("Selecione itens primeiro");if(!confirm(`Excluir ${ids.length} item(ns)? Não dá para desfazer.`))return;
  await store(view==="explorar"?"catalog":"books").delMany(ids);sel.clear();selMode=false;load()};
 /* sugestões a partir do que já existe no banco */
@@ -785,6 +787,10 @@ function priceDlg(s,id,r){const {cid,l}=priceOf(s,r),d=$("#dlg");if(cid==null)re
  $$("[data-pd]",d).forEach(b=>b.onclick=async()=>{const pid=+b.dataset.pd;try{const x=must(await sb.from("precos").delete().eq("id",pid).select("id"));if(!x.length)return toast("Só o administrador ou quem registrou pode excluir");precos=precos.filter(p=>p.id!==pid);priceDlg(s,id,r)}catch(e){toast("Não foi possível excluir")}});
  if(user)$("#psv").onclick=async()=>{const price=parseFloat($("#ppr").value),url=$("#pur").value.trim();if(!(price>0))return toast("Informe o preço");if(url&&!/^https?:\/\//i.test(url))return toast("O link deve começar com http(s)");
   await addPrice(cid,{date:$("#pdt").value||today(),price,store:$("#pst").value.trim(),state:$("#pse").value,url,src:"manual"});priceDlg(s,id,r)}}
+
+async function copyToCat(list){if(!user)return;let n=0,ex=0;toast("Copiando para o catálogo…");
+ for(const b of list){const had=b.catId!=null&&catalog.some(c=>c.id===b.catId);await pushCat(b);had?ex++:n++}
+ await load();toast(`${n} copiado(s) para o catálogo${ex?`, ${ex} já estavam lá (dados conferidos)`:""}`)}
 
 /* ---------- Login e inicialização ---------- */
 const authBox=(msg,err)=>{$("#auth").hidden=false;$("#am").textContent=msg||"";$("#ae").textContent=err||""};
