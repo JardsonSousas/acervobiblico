@@ -117,7 +117,7 @@ function render(){chrome();renderSide();
     sb.innerHTML=[["","Todos",base.length],...["Não lido","Lendo","Lido"].map(x=>[x,x,base.filter(b=>status(b)===x).length])]
       .map(([v,l,n])=>`<button type="button" class="chip st${F.status===v?" on":""}" data-st="${v}" aria-pressed="${F.status===v}">${l} <span>${n}</span></button>`).join("")}
   $("#main").className="";
-  ({autores:vAutores,livros:vLivros,desejos:vLivros,explorar:vLivros,prateleiras:()=>vGroup("shelf"),etiquetas:()=>vGroup("tag"),stats:vStats,metas:vMetas})[view]();
+  ({colecoes:vColecoes,autores:vAutores,livros:vLivros,desejos:vLivros,explorar:vLivros,prateleiras:()=>vGroup("shelf"),etiquetas:()=>vGroup("tag"),stats:vStats,metas:vMetas})[view]();
 }
 function vLivros(){const l=filtered(),ex=view==="explorar";$("#main").className=mode==="grade"?"grid":"lista";
   $("#main").innerHTML=l.length?l.map(card).join(""):`<div class="empty">${ex?(catalog.length?"Nada encontrado no catálogo. Use “Buscar na internet” para trazer novos livros.":"O catálogo está vazio. Use “Buscar na internet”, importe uma planilha ou JSON para o catálogo, ou cadastre manualmente."):books.length?"Nenhum item encontrado com esses filtros.":"Sua estante está vazia. Clique em “Novo item” para começar ou importe um backup."}</div>`;
@@ -251,7 +251,8 @@ async function save(f,id,old,store,refs){
   if(o.pages&&o.pagesRead>o.pages)o.pagesRead=o.pages;
   const m={...old,...o};if(isB){delete m.boughtDate;delete m.boughtPrice;delete m.lent}
   if(id)m.id=id;if(!isB)m.sy=1;const po=m.priceObs;delete m.priceObs;
-  const nid=await rq(st(store,"readwrite").put(m));if(isB){if(m.id==null)m.id=nid;await pushCat(m);if(m.catId!=null){if(po)await addPrice(m.catId,po);for(const p of m.purchases||[])await addPrice(m.catId,{...p,src:"compra"})}}
+  if(isB&&m.wish){try{await ensureCat(m)}catch(e){return toast("Para entrar na lista de desejo o livro precisa estar no catálogo, e não consegui cadastrá-lo lá: "+(e.message||e))}}
+  const nid=await rq(st(store,"readwrite").put(m));if(isB){if(m.id==null)m.id=nid;await pushCat(m);if(m.catId!=null){if(po)await addPrice(m.catId,po);for(const p of m.purchases||[])await addPrice(m.catId,{...p,src:"compra"})}}else{if(m.id==null)m.id=nid;await propagate([m])}
 }
 async function lookup(f){
   const isbn=digits(f.elements.isbn.value);if(!isbn)return toast("Digite o ISBN primeiro");
@@ -528,7 +529,7 @@ $("#fileImp").onchange=async e=>{const f=e.target.files[0];if(!f)return;
   finally{e.target.value=""}};
 
 /* ---------- Eventos ---------- */
-$("#tabs").onclick=e=>{const v=e.target.dataset.v;if(v){if(!["explorar","autores"].includes(v)&&!need())return;view=v;sel.clear();selMode=false;F.launch=false;FAC.forEach(([k])=>F[k]="");F.hits=null;render()}};
+$("#tabs").onclick=e=>{const v=e.target.dataset.v;if(v){if(!["explorar","autores","colecoes"].includes(v)&&!need())return;view=v;sel.clear();selMode=false;F.launch=false;FAC.forEach(([k])=>F[k]="");F.hits=null;render()}};
 $("#add").onclick=()=>edit();$("#bk").onclick=backup;
 $("#addcat").onclick=()=>need()&&edit(null,"catalog");$("#srch").onclick=searchOnline;
 $("#q").oninput=e=>{F.q=e.target.value;F.hits=null;render()};
@@ -583,7 +584,7 @@ function cfgDlg(){const d=$("#dlg");d.className="";
  d.oninput=go;$("#cfok").onclick=()=>{d.oninput=null;d.close()}}
 function chrome(){const ex=view==="explorar",can=(user&&(view==="livros"||view==="desejos"))||(ex&&admin);
  $("#addi").hidden=!user;$("#sidb").hidden=!["livros","desejos","explorar"].includes(view);$("#in").hidden=!!user;$("#out").hidden=!user;$("#add").hidden=!user;$("#bk").hidden=!user;$("#rnd").hidden=!user;
- $$("#tabs button").forEach(b=>b.hidden=!user&&!["explorar","autores"].includes(b.dataset.v));
+ $$("#tabs button").forEach(b=>b.hidden=!user&&!["explorar","autores","colecoes"].includes(b.dataset.v));
  if(!can){selMode=false;sel.clear()}
  $("#selb").hidden=!can;$("#selcat").hidden=view==="explorar";$("#selact").hidden=!selMode;$("#selb").textContent=selMode?"Sair da seleção":"Selecionar";$("#cfg").hidden=mode!=="lista"}
 const markSel=()=>{$$("#main [data-id]").forEach(e=>e.classList.toggle("sel",selMode&&sel.has(+e.dataset.id)));$("#selc").textContent=sel.size+" selecionado(s)"};
@@ -595,7 +596,7 @@ function bulk(){const ex=view==="explorar",ids=[...sel];if(!ids.length)return to
  $("#bok").onclick=async()=>{const k=$("#bf").value,m=$("#bm").value,v=$("#bv").value.trim(),list=!!FD.find(x=>x[0]===k)[2],vals=sp(v,k==="tags"?/,/:/;/),arr=ex?catalog:books,it=ids.map(i=>arr.find(x=>x.id===i)).filter(Boolean);
   if(!list&&m!=="set")return toast("Adicionar/Remover só vale para campos de lista");
   it.forEach(b=>{const cu=k==="tags"?(b.tags||[]):sp(b[k]),nv=!list?v:m==="add"?[...new Set([...cu,...vals])]:m==="rm"?cu.filter(x=>!vals.includes(x)):vals;b[k]=(k==="tags"||!list)?nv:nv.join("; ")});
-  if(ex)it.forEach(b=>b.sy=1);await store(ex?"catalog":"books").putMany(it);if(!ex){toast("Sincronizando com a biblioteca…");for(const b of it)await pushCat(b)}d.close();sel.clear();selMode=false;load();toast(`${it.length} itens atualizados`)}}
+  if(ex)it.forEach(b=>b.sy=1);await store(ex?"catalog":"books").putMany(it);if(!ex){toast("Sincronizando com a biblioteca…");for(const b of it)await pushCat(b)}else await propagate(it);d.close();sel.clear();selMode=false;load();toast(`${it.length} itens atualizados`)}}
 $("#selb").onclick=()=>{selMode=!selMode;sel.clear();render()};
 $("#sela").onclick=()=>{filtered().forEach(b=>sel.add(b.id));markSel()};
 $("#selm").onclick=bulk;
@@ -640,9 +641,9 @@ async function isbnAdd(txt,wish){const l=[...new Set(txt.split(/[\s,;]+/).map(di
  for(const n of l){toast(`Buscando ${++i}/${l.length}…`);if(IDX.isbn.get(n)){dup++;continue}
   let c=catalog.find(x=>digits(x.isbn)===n);
   if(!c){const it=await byIsbn(n);if(it){c={tipo:"livro",added:today(),...it,isbn:n};delete c.src;try{c.id=await store("catalog").add(c);catalog.push(c)}catch{c=null}}}
-  if(c)arr.push(toBook(c,{wish})) ;else{miss++;arr.push({tipo:"livro",title:"ISBN "+n+" (completar dados)",isbn:n,copies:1,added:today(),tags:[],wish,purchases:[]})}}
+  if(c)arr.push(toBook(c,{wish})) ;else{miss++;if(!wish)arr.push({tipo:"livro",title:"ISBN "+n+" (completar dados)",isbn:n,copies:1,added:today(),tags:[],wish,purchases:[]})}}
  if(arr.length)await store("books").addMany(arr);$("#dlg").close();await load();
- toast(`${arr.length} adicionados${miss?`, ${miss} sem dados (complete na edição)`:""}${dup?`, ${dup} já existiam`:""}`)}
+ toast(`${arr.length} adicionados${miss?`, ${miss} sem dados${wish?" (não entraram na lista de desejo: só entram livros que estão no catálogo)":" (complete na edição)"}`:""}${dup?`, ${dup} já existiam`:""}`)}
 async function scan(ta){if(!("BarcodeDetector" in window))return toast("Este navegador não lê código de barras. Use o Chrome no celular ou digite o ISBN.");
  let st;try{st=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}})}catch{return toast("Sem acesso à câmera")}
  const v=document.createElement("video");v.srcObject=st;v.setAttribute("playsinline","");v.muted=true;await v.play();
@@ -791,6 +792,25 @@ function priceDlg(s,id,r){const {cid,l}=priceOf(s,r),d=$("#dlg");if(cid==null)re
 async function copyToCat(list){if(!user)return;let n=0,ex=0;toast("Copiando para o catálogo…");
  for(const b of list){const had=b.catId!=null&&catalog.some(c=>c.id===b.catId);await pushCat(b);had?ex++:n++}
  await load();toast(`${n} copiado(s) para o catálogo${ex?`, ${ex} já estavam lá (dados conferidos)`:""}`)}
+
+/* ---------- Garantias: lista de desejo só com livro do catálogo; edição reflete onde o livro estiver salvo ---------- */
+async function ensureCat(b){let c=b.catId!=null?catalog.find(x=>x.id===b.catId):null;
+ if(!c)c=catalog.find(x=>(b.isbn&&digits(x.isbn)===digits(b.isbn))||same(x)===same(b));
+ if(!c){const n={added:today(),...shared(b),sy:1};n.id=await store("catalog").add(n);catalog.push(n);c=n}
+ b.catId=c.id;return c}
+async function propagate(list){const ch=[];for(const c of list)for(const b of books)if(b.catId===c.id||(b.catId==null&&same(b)===same(c))){b.catId=c.id;Object.assign(b,shared(c));b.detach=false;if(!ch.includes(b))ch.push(b)}
+ if(ch.length)await store("books").putMany(ch)}
+/* página de coleções em carrossel */
+let CQ="";
+function vColecoes(){const m=new Map();everything().forEach(e=>{const n=String(e.r.collection||"").trim();if(!n)return;const k=ckey(n);let g=m.get(k);if(!g)m.set(k,g={n,l:[]});g.l.push(e)});
+ const gs=[...m.values()].sort((a,b)=>norm(a.n).localeCompare(norm(b.n)));
+ $("#main").innerHTML=`<h2 style="margin-top:0">Coleções (${gs.length})</h2><input id="cq" type="search" placeholder="Buscar coleção" aria-label="Buscar coleção" value="${esc(CQ)}"><div id="cl" style="margin-top:14px"></div>`;
+ const draw=()=>{const q=norm(CQ);$("#cl").innerHTML=gs.filter(g=>!q||norm(g.n).includes(q)).map(g=>{const l=g.l.slice().sort(byVol),own=l.filter(e=>e.s==="b"&&!e.r.wish).length;
+  return `<section class="colc"><h3>${esc(g.n)} <span class="m">(${l.length} ${l.length===1?"obra":"obras"}${user?` · ${own} no meu acervo`:""})</span></h3><div class="car"><button type="button" class="cn" data-cs="-1" aria-label="Anterior">‹</button><div class="ctrack">${l.map(e=>`<div class="ci" data-ci="${e.s}:${e.r.id}" tabindex="0" role="button"><div class="cw">${cover(e.r)}${e.s==="b"&&!e.r.wish?'<span class="cb ok">No acervo</span>':e.s==="b"?'<span class="cb">Desejo</span>':""}</div><div class="pprt">${esc(label(e.r))}</div></div>`).join("")}</div><button type="button" class="cn" data-cs="1" aria-label="Próximo">›</button></div></section>`}).join("")||'<div class="empty">Nenhuma coleção encontrada. Preencha o campo “Coleção” nos livros.</div>'};
+ draw();$("#cq").oninput=e=>{CQ=e.target.value;draw()}}
+$("#main").addEventListener("click",e=>{const b=e.target.closest("[data-cs]");if(b){const t=b.parentElement.querySelector(".ctrack");t.scrollBy({left:+b.dataset.cs*t.clientWidth*.85,behavior:"smooth"});return}
+ const c=e.target.closest("[data-ci]");if(c){const [s,i]=c.dataset.ci.split(":");showItem(s,+i)}});
+$("#main").addEventListener("keydown",e=>{if(e.key==="Enter"){const c=e.target.closest("[data-ci]");if(c)c.click()}});
 
 /* ---------- Login e inicialização ---------- */
 const authBox=(msg,err)=>{$("#auth").hidden=false;$("#am").textContent=msg||"";$("#ae").textContent=err||""};

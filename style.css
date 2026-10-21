@@ -204,3 +204,12 @@ body.lock>header,body.lock>#tools,body.lock>main{display:none}
 
 .pch{color:var(--acc);width:100%;max-height:170px;margin:8px 0}
 .chip.lan{background:#2f7d4f;border-color:#2f7d4f}
+
+/* ---------- coleções em carrossel ---------- */
+.colc{margin:0 0 22px}.colc h3{margin:0 0 8px;font-size:1.05rem}.car{position:relative}
+.ctrack{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding:4px 2px 10px;scrollbar-width:thin}
+.ci{flex:none;width:128px;scroll-snap-align:start;cursor:pointer;border-radius:6px}
+.ci img{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.25);display:block;background:var(--card)}
+.cn{position:absolute;top:38%;z-index:1;width:36px;height:36px;border-radius:50%;padding:0;font-size:1.4rem;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.cn[data-cs="-1"]{left:-6px}.cn[data-cs="1"]{right:-6px}
+@media (prefers-reduced-motion:no-preference){.ctrack{scroll-behavior:smooth}}
