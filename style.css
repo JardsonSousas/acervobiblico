@@ -213,3 +213,9 @@ body.lock>header,body.lock>#tools,body.lock>main{display:none}
 .cn{position:absolute;top:38%;z-index:1;width:36px;height:36px;border-radius:50%;padding:0;font-size:1.4rem;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.25)}
 .cn[data-cs="-1"]{left:-6px}.cn[data-cs="1"]{right:-6px}
 @media (prefers-reduced-motion:no-preference){.ctrack{scroll-behavior:smooth}}
+
+/* ---------- comparação e gerenciamento ---------- */
+.cmp{width:100%;border-collapse:collapse}.cmp th{text-align:left;color:var(--mute);font-weight:500;padding:6px 8px;white-space:nowrap;vertical-align:top}
+.cmp td{padding:6px 8px;vertical-align:top;border-top:1px solid var(--line);min-width:130px}.cmp tr.df td{background:rgba(201,138,16,.14)}
+.cmpc img,.cmpc .nocover{width:90px}
+label.grp{cursor:pointer}

@@ -5,11 +5,12 @@ const norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLo
 const sp=(s,re=/;/)=>String(s||"").split(re).map(x=>x.trim()).filter(Boolean);
 const money=n=>n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const today=()=>new Date().toISOString().slice(0,10);
-const same=b=>norm([b.tipo||"livro",b.title,b.tipo==="revista"?[b.number,b.volume,b.month,b.pubDate].join("/"):b.authors].join("|"));
+const workKey=b=>norm([b.tipo||"livro",b.title,b.tipo==="revista"?[b.number,b.volume,b.month,b.pubDate].join("/"):b.authors].join("|"));
+const same=b=>workKey(b)+(b.tipo==="revista"?"":"|"+norm(b.edition||""));
 /* filtros: [chave, rótulo, função que extrai os valores de cada item] */
 const FAC=[["shelf","Prateleira",b=>[b.shelf]],["author","Autor",b=>sp(b.authors).map(x=>nice(x))],["translator","Tradutor",b=>sp(b.translators)],
 ["contrib","Organizador / ilustrador",b=>[...sp(b.editors),...sp(b.illustrators)]],["publisher","Editora",b=>[b.publisher]],["year","Ano de publicação",b=>[String(b.pubDate||"")]],["collection","Coleção",b=>[b.collection]],
-["category","Categoria",b=>sp(b.categories)],["tag","Etiqueta",b=>b.tags||[]],["person","Pessoa (qualquer função)",b=>[...sp(b.authors),...sp(b.editors),...sp(b.translators),...sp(b.illustrators)].map(x=>nice(x))]];
+["category","Categoria",b=>sp(b.categories)],["tag","Etiqueta",b=>[...new Set([...(b.tags||[]),...(b.ctags||[])])]],["person","Pessoa (qualquer função)",b=>[...sp(b.authors),...sp(b.editors),...sp(b.translators),...sp(b.illustrators)].map(x=>nice(x))]];
 let db,books=[],goals=[],catalog=[],view="livros",mode="grade",shelfMode="estante",impMode="add",impDest="books",F={q:"",tipo:"",status:"",sort:"added",hits:null};
 FAC.forEach(([k])=>F[k]="");
 let cur=null,stack=[],IDX={isbn:new Map(),cat:new Map(),key:new Map()};
@@ -69,7 +70,7 @@ function filtered(skipSt){
   const q=F.hits?"":norm(F.q),src=pool().filter(b=>!F.hits||F.hits.includes(b.id));
   const l=src.filter(b=>(!F.tipo||(b.tipo||"livro")===F.tipo)&&(!F.status||skipSt||view==="explorar"||status(b)===F.status)
     &&(!F.launch||isLaunch(b))&&FAC.every(([k,,g])=>!F[k]||g(b).includes(F[k]))
-    &&(!q||norm([b.title,b.subtitle,b.authors,b.translators,b.editors,b.isbn,b.shelf,b.publisher,b.categories,b.collection,b.note,b.issn,b.theme,b.number,(b.tags||[]).join(" ")].join(" ")).includes(q)));
+    &&(!q||norm([b.title,b.subtitle,b.authors,b.translators,b.editors,b.isbn,b.shelf,b.publisher,b.categories,b.collection,b.note,b.issn,b.theme,b.number,[...(b.tags||[]),...(b.ctags||[])].join(" ")].join(" ")).includes(q)));
   const [kf,dr]=SK[F.sort]||SK.added;
   return l.sort((a,b)=>{const x=kf(a),y=kf(b);return (x<y?-1:x>y?1:0)*dr})}
 
@@ -90,7 +91,7 @@ const openRef=k=>{const [s,i]=k.split(":");if(!(s==="b"?books:catalog).some(x=>x
 
 /* ---------- Telas ---------- */
 const cover=b=>b.cover?`<img loading="lazy" referrerpolicy="no-referrer" src="${esc(b.cover)}" alt="${esc(b.title)}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'nocover',textContent:this.alt}))">`:`<div class="nocover">${esc(b.title)}</div>`;
-const label=b=>b.tipo==="revista"?`${b.title}${b.number?" nº "+b.number:""}${b.pubDate?" ("+b.pubDate+")":""}`:b.title;
+const label=b=>b.tipo==="revista"?`${b.title}${b.number?" nº "+b.number:""}${b.pubDate?" ("+b.pubDate+")":""}`:b.title+(b.edition?` (${b.edition})`:"");
 const sub=b=>b.tipo==="revista"?[b.number&&"Nº "+b.number,b.volume&&"Vol. "+b.volume,[b.month,b.pubDate].filter(Boolean).join("/"),b.periodicity].filter(Boolean).join(" · "):b.authors;
 const badge=b=>{if(view!=="explorar")return"";const o=ownedOf(b),LN=isLaunch(b)?'<span class="chip on lan">Lançamento</span> ':"";return LN+(o?`<span class="chip on">${o.wish?"Na lista de desejo":"No acervo"}</span>`:"")};
 const mark=b=>{const x=view==="livros"&&!b.wish&&b.tipo!=="revista"?status(b):"";return x&&x!=="Não lido"?`<span class="cb ${x==="Lido"?"ok":""}">${x}</span>`:""};
@@ -117,7 +118,7 @@ function render(){chrome();renderSide();
     sb.innerHTML=[["","Todos",base.length],...["Não lido","Lendo","Lido"].map(x=>[x,x,base.filter(b=>status(b)===x).length])]
       .map(([v,l,n])=>`<button type="button" class="chip st${F.status===v?" on":""}" data-st="${v}" aria-pressed="${F.status===v}">${l} <span>${n}</span></button>`).join("")}
   $("#main").className="";
-  ({colecoes:vColecoes,autores:vAutores,livros:vLivros,desejos:vLivros,explorar:vLivros,prateleiras:()=>vGroup("shelf"),etiquetas:()=>vGroup("tag"),stats:vStats,metas:vMetas})[view]();
+  ({gerenciar:vGerenciar,editoras:vEditoras,colecoes:vColecoes,autores:vAutores,livros:vLivros,desejos:vLivros,explorar:vLivros,prateleiras:()=>vGroup("shelf"),etiquetas:()=>vGroup("tag"),stats:vStats,metas:vMetas})[view]();
 }
 function vLivros(){const l=filtered(),ex=view==="explorar";$("#main").className=mode==="grade"?"grid":"lista";
   $("#main").innerHTML=l.length?l.map(card).join(""):`<div class="empty">${ex?(catalog.length?"Nada encontrado no catálogo. Use “Buscar na internet” para trazer novos livros.":"O catálogo está vazio. Use “Buscar na internet”, importe uma planilha ou JSON para o catálogo, ou cadastre manualmente."):books.length?"Nenhum item encontrado com esses filtros.":"Sua estante está vazia. Clique em “Novo item” para começar ou importe um backup."}</div>`;
@@ -164,9 +165,10 @@ const FIELDS=[["tipo","Tipo","select",["livro","revista"]],["isbn","ISBN","text"
 ["rating","Classificação (0 a 5)","select",["0","1","2","3","4","5"],"","lrp"],["pagesRead","Páginas lidas","number","","","lrp"],["start","Começou a ler em","date","","","lrp"],["end","Terminou de ler em","date","","","lrp"],
 ["sold","Vendido / doado","text","","","lrp"],["condition","Condição","text","","","lrp"],["copies","Número de cópias","number","","","lrp"],["added","Adicionado em","date","","","lrp"],
 ["contrib","Outros colaboradores","text","full"],["description","Descrição","textarea","full"],["review","Avaliação / resenha","textarea","full","","lrp"],["note","Anotação curta","text","full","","lrp"],["rereads","Releituras (uma por linha: início – fim)","textarea","full","","lrp"],
+["ctags","Etiquetas do catálogo (separe com vírgula)","text","full","dl_ctags"],
 ["buyUrl","Link da loja (Amazon etc.)","url","full","","l"],
 ["coverUrl","URL da capa (endereço da imagem na internet)","url","full"]];
-const fld=([k,l,t,o,dl,w],b)=>{const v=k==="tags"?(b.tags||[]).join(", "):k==="coverUrl"?(b.cover&&!b.cover.startsWith("data:")?b.cover:""):k==="tipo"?(b.tipo||"livro"):b[k]??"";
+const fld=([k,l,t,o,dl,w],b)=>{const v=(k==="tags"||k==="ctags")?(b[k]||[]).join(", "):k==="coverUrl"?(b.cover&&!b.cover.startsWith("data:")?b.cover:""):k==="tipo"?(b.tipo||"livro"):b[k]??"";
   const inp=t==="select"?`<select name="${k}">${o.map(x=>`<option value="${x}" ${String(v).toLowerCase()===x.toLowerCase()?"selected":""}>${x.charAt(0).toUpperCase()+x.slice(1)}</option>`).join("")}</select>`
    :t==="textarea"?`<textarea name="${k}" rows="3">${esc(v)}</textarea>`
    :`<input name="${k}" type="${t}" ${t==="number"?'step="any" min="0"':""} value="${esc(v)}" ${dl?`list="${dl}"`:""} ${k==="title"?"required":""}>`;
@@ -238,7 +240,7 @@ async function save(f,id,old,store,refs){
   const cu=o.coverUrl;delete o.coverUrl;
   if(cu&&!/^https?:\/\//i.test(cu)){toast("A URL da capa deve começar com http:// ou https://");return false}
   o.tipo=o.tipo||"livro";
-  if(isB){o.tags=sp(o.tags,/,/);["pages","pagesRead","rating","copies"].forEach(k=>o[k]=o[k]===""?"":Number(o[k]));
+  o.ctags=sp(o.ctags,/,/);if(isB){o.tags=sp(o.tags,/,/);["pages","pagesRead","rating","copies"].forEach(k=>o[k]=o[k]===""?"":Number(o[k]));
     o.signed=!!fd.get("signed");o.wish=!!fd.get("wish");
     ["purchases","loans"].forEach(k=>o[k]=$$(`[data-k="${k}"] .lr`,f).map(r=>{const x={};$$("[data-f]",r).forEach(i=>{const v=i.value.trim();if(v)x[i.dataset.f]=i.type==="number"?Number(v):v});return x})
       .filter(x=>Object.keys(x).some(z=>z!=="dir"&&z!=="state")))}
@@ -252,7 +254,7 @@ async function save(f,id,old,store,refs){
   const m={...old,...o};if(isB){delete m.boughtDate;delete m.boughtPrice;delete m.lent}
   if(id)m.id=id;if(!isB)m.sy=1;const po=m.priceObs;delete m.priceObs;
   if(isB&&m.wish){try{await ensureCat(m)}catch(e){return toast("Para entrar na lista de desejo o livro precisa estar no catálogo, e não consegui cadastrá-lo lá: "+(e.message||e))}}
-  const nid=await rq(st(store,"readwrite").put(m));if(isB){if(m.id==null)m.id=nid;await pushCat(m);if(m.catId!=null){if(po)await addPrice(m.catId,po);for(const p of m.purchases||[])await addPrice(m.catId,{...p,src:"compra"})}}else{if(m.id==null)m.id=nid;await propagate([m])}
+  const nid=await rq(st(store,"readwrite").put(m));if(isB){if(m.id==null)m.id=nid;await pushCat(m);if(m.catId!=null){if(po)await addPrice(m.catId,po);for(const p of m.purchases||[])await addPrice(m.catId,{...p,src:"compra"})}}else{if(m.id==null)m.id=nid;await propagate([m]);if(po)await addPrice(m.id,po)}
 }
 async function lookup(f){
   const isbn=digits(f.elements.isbn.value);if(!isbn)return toast("Digite o ISBN primeiro");
@@ -337,7 +339,7 @@ function paint(s,id){
   const org=sp(r.editors).map(a=>`<button type="button" class="lk ppau" data-filter="person:${E(nice(a))}" title="Ver as obras de ${E(nice(a))}">${E(nice(a))}</button>`).join(", ");
   const showProg=B&&!r.wish&&(r.end||r.pagesRead>0);
   const info=[["Tradutores",E(L(r.translators))],["Organizadores / editores",E(L(r.editors))],["Ilustradores",E(L(r.illustrators))],["Outros colaboradores",E(r.contrib)],
-    ["Editora",E(r.publisher)],["Local",E(r.city)],["Edição",E(r.edition)],["Número",E(r.number)],["Volume",E(r.volume)],["Mês",E(r.month)],["Periodicidade",E(r.periodicity)],
+    ["Editora",r.publisher?`<button type="button" class="lk" data-filter="publisher:${E(r.publisher)}">${E(r.publisher)}</button>`:""],["Local",E(r.city)],["Edição",E(r.edition)],["Número",E(r.number)],["Volume",E(r.volume)],["Mês",E(r.month)],["Periodicidade",E(r.periodicity)],
     ["ISSN",E(r.issn)],["Tema",E(r.theme)],["ISBN",E(r.isbn)],["Idioma",E(r.language)],["Formato",E(r.format)],
     ["Série / volume",r.collection?"":E(r.series)],["Prateleira",E(r.shelf)],["Loja",r.buyUrl&&/^https?:/i.test(r.buyUrl)?`<a href="${E(r.buyUrl)}" target="_blank" rel="noopener noreferrer">Abrir link</a>`:""],["Fonte",E(r.src)]].map(([l,v])=>dlRow(l,v)).join("");
   let mine="";
@@ -346,7 +348,7 @@ function paint(s,id){
       ["Condição",E(r.condition)],["Estado na compra",E(((r.purchases||[])[0]||{}).state)],["Autografado",r.signed?"Sim":""],["Investido",spent(r)?money(spent(r)):""],["Vendido / doado",E(r.sold)],["Anotação",E(r.note)],["Empréstimo em aberto",lo]].map(([l,v])=>dlRow(l,v)).join("")}
   const grp=related(s,r),rel=grp.map(relSec).join(""),neds=(grp.find(g=>g.k==="ed2")||{l:[]}).l.length;
   const meta=[r.pages&&r.pages+" páginas",r.pubDate&&"publicado em "+r.pubDate,neds&&(neds+1)+" edições no catálogo"].filter(Boolean).join(" · ");
-  const subj=[...sp(r.categories).map(v=>["category",v]),...(B?(r.tags||[]).map(v=>["tag",v]):[])];
+  const subj=[...sp(r.categories).map(v=>["category",v]),...[...new Set([...(B?(r.tags||[]):[]),...(r.ctags||[])])].map(v=>["tag",v])];
   const subjHtml=subj.length?`<p class="ppsu">${subj.map(([k,v])=>`<button type="button" class="chip" data-filter="${k}:${E(v)}">${E(v)}</button>`).join("")}</p>`:"";
   const foot=B?`${r.wish?'<button type="button" class="pri" data-act="own">Já tenho: mover para o acervo</button>':""}<span class="sp"></span><button type="button" data-act="copycat" title="Cria (ou atualiza) este livro no catálogo compartilhado">Copiar para o catálogo</button><button type="button" class="${r.wish?"":"pri"}" data-act="edit">Editar</button>`
     :`${admin?'<button type="button" class="dg" data-act="del">Remover do catálogo</button><button type="button" data-act="edit">Editar dados</button>':""}<span class="sp"></span>${o?'<button type="button" class="pri" data-act="owned">Abrir no '+(o.wish?"lista de desejo":"acervo")+"</button>":'<button type="button" data-act="wish">Lista de desejo</button><button type="button" class="pri" data-act="add">Adicionar ao acervo</button>'}`;
@@ -369,7 +371,7 @@ function paint(s,id){
   ${mine?`<section class="ppsec"><h3>Meu exemplar</h3><dl class="ppdl">${mine}</dl></section>`:""}
   ${rel}
   ${refsOf(r,s).length?`<section class="ppsec"><h3>Referências bibliográficas</h3>${sortRefs(refsOf(r,s)).map(x=>`<p class="ref">${refText(x,true)}${x.k&&refObj(x)?` <button type="button" class="lk" data-open="${E(x.k)}">abrir</button>`:""}</p>`).join("")}</section>`:""}
-  ${priceSec(s,r)}${cited.length?`<section class="ppsec"><h3>Citado em</h3><p>${cited.map(([k,x])=>`<button type="button" class="lk" data-open="${k}">${E(x.title)}</button>`).join(" · ")}</p></section>`:""}<div class="ft">${foot}</div></div>`;
+  ${edSec(s,r)}${priceSec(s,r)}${cited.length?`<section class="ppsec"><h3>Citado em</h3><p>${cited.map(([k,x])=>`<button type="button" class="lk" data-open="${k}">${E(x.title)}</button>`).join(" · ")}</p></section>`:""}<div class="ft">${foot}</div></div>`;
   if(!d.open)d.showModal();
   $(".ppw",d).focus({preventScroll:true});d.scrollTop=0}
 async function popClick(e){
@@ -386,6 +388,7 @@ async function popClick(e){
   const a=t.dataset.act;if(a==="close")return d.close();
   if(a==="back"){const p=stack.pop();return p&&paint(p.s,p.id)}
   if(!cur)return;const {s,id}=cur,r=(s==="b"?books:catalog).find(x=>x.id===id);if(!r)return;
+  if(a==="newed"){if(need()){const b=shared(r);["isbn","cover","pages","pubDate","edition","buyUrl"].forEach(k=>delete b[k]);b.added=today();edit(null,"catalog",b)}return}
   if(a==="price")return priceDlg(s,id,r);
   if(a==="copycat"){if(s==="b"&&need()){await copyToCat([r]);paint(s,id)}return}
   if(["wish","add","own"].includes(a)&&!need())return;
@@ -529,7 +532,7 @@ $("#fileImp").onchange=async e=>{const f=e.target.files[0];if(!f)return;
   finally{e.target.value=""}};
 
 /* ---------- Eventos ---------- */
-$("#tabs").onclick=e=>{const v=e.target.dataset.v;if(v){if(!["explorar","autores","colecoes"].includes(v)&&!need())return;view=v;sel.clear();selMode=false;F.launch=false;FAC.forEach(([k])=>F[k]="");F.hits=null;render()}};
+$("#tabs").onclick=e=>{const v=e.target.dataset.v;if(v){if(!["explorar","autores","colecoes","editoras"].includes(v)&&!need())return;view=v;sel.clear();selMode=false;F.launch=false;FAC.forEach(([k])=>F[k]="");F.hits=null;render()}};
 $("#add").onclick=()=>edit();$("#bk").onclick=backup;
 $("#addcat").onclick=()=>need()&&edit(null,"catalog");$("#srch").onclick=searchOnline;
 $("#q").oninput=e=>{F.q=e.target.value;F.hits=null;render()};
@@ -567,7 +570,7 @@ publisher:'<rect width="16" height="20" x="4" y="2" rx="2"/><path d="M9 22v-4h6v
 status:'<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>'};
 const ico=k=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg>`;
 const LF=[["editors","Organizador / comentarista",b=>b.tipo==="revista"?sp(b.editors).map(x=>esc(nice(x))).join(", "):""],["theme","Tema",b=>b.tipo==="revista"?esc(b.theme):""],["category","Categoria",b=>esc(L(b.categories))],["pages","Páginas",b=>b.pages?b.pages+" p.":""],["year","Ano de publicação",b=>esc(b.pubDate)],["shelf","Prateleira",b=>esc(b.shelf)],["format","Formato",b=>esc(b.format)],
-["tags","Etiquetas",b=>(b.tags||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")],["price","Valor",b=>spent(b)?money(spent(b)):""],
+["tags","Etiquetas",b=>[...new Set([...(b.tags||[]),...(b.ctags||[])])].map(t=>`<span class="chip">${esc(t)}</span>`).join("")],["price","Valor",b=>spent(b)?money(spent(b)):""],
 ["bdate","Data da compra",b=>fmtD((b.purchases||[]).map(x=>x.date).filter(Boolean).sort().pop()||b.boughtDate)],["publisher","Editora",b=>esc(b.publisher)],["status","Status",b=>view==="explorar"||b.wish||b.tipo==="revista"?"":status(b)]];
 const rowHtml=b=>`<article class="row" data-id="${b.id}"><div class="cv">${cover(b)}</div><div class="rb"><h3>${esc(label(b))}</h3><p class="m">${esc(sub(b))}</p>
  ${b.rating?`<span class="stars">${"★".repeat(b.rating)}${"☆".repeat(5-b.rating)}</span>`:""}${view==="explorar"||b.wish?"":`<div class="bar"><i style="width:${prog(b)}%"></i></div>`}
@@ -582,20 +585,20 @@ function cfgDlg(){const d=$("#dlg");d.className="";
  const go=()=>{LC.ar=$("#car").value;LC.w=+$("#cw").value;LC.fit=$("#cfit").value;LC.f=$$("[data-cf]",d).filter(x=>x.checked).map(x=>x.dataset.cf);$("#cwv").textContent=LC.w;
   try{localStorage.setItem("lc",JSON.stringify(LC))}catch{}applyLC();render()};
  d.oninput=go;$("#cfok").onclick=()=>{d.oninput=null;d.close()}}
-function chrome(){const ex=view==="explorar",can=(user&&(view==="livros"||view==="desejos"))||(ex&&admin);
+function chrome(){const ex=view==="explorar",can=(user&&(view==="livros"||view==="desejos"))||(ex&&user);
  $("#addi").hidden=!user;$("#sidb").hidden=!["livros","desejos","explorar"].includes(view);$("#in").hidden=!!user;$("#out").hidden=!user;$("#add").hidden=!user;$("#bk").hidden=!user;$("#rnd").hidden=!user;
- $$("#tabs button").forEach(b=>b.hidden=!user&&!["explorar","autores","colecoes"].includes(b.dataset.v));
+ $$("#tabs button").forEach(b=>b.hidden=!user&&!["explorar","autores","colecoes","editoras"].includes(b.dataset.v));
  if(!can){selMode=false;sel.clear()}
- $("#selb").hidden=!can;$("#selcat").hidden=view==="explorar";$("#selact").hidden=!selMode;$("#selb").textContent=selMode?"Sair da seleção":"Selecionar";$("#cfg").hidden=mode!=="lista"}
+ $("#selb").hidden=!can;$("#selcat").hidden=ex;$("#selw").hidden=$("#selo").hidden=!ex;$("#selm").hidden=$("#seld").hidden=ex&&!admin;$("#selact").hidden=!selMode;$("#selb").textContent=selMode?"Sair da seleção":"Selecionar";$("#cfg").hidden=mode!=="lista"}
 const markSel=()=>{$$("#main [data-id]").forEach(e=>e.classList.toggle("sel",selMode&&sel.has(+e.dataset.id)));$("#selc").textContent=sel.size+" selecionado(s)"};
 function bulk(){const ex=view==="explorar",ids=[...sel];if(!ids.length)return toast("Selecione itens primeiro");
- const FD=[["categories","Categorias",1],["tags","Etiquetas",1],["authors","Autores",1],["translators","Tradutores",1],["shelf","Prateleira"],["publisher","Editora"],["format","Formato"],["language","Idioma"],["collection","Coleção"],["city","Local"],["pubDate","Ano"]].filter(([k])=>!(ex&&(k==="tags"||k==="shelf"))),d=$("#dlg");
+ const FD=[["categories","Categorias",1],["tags","Minhas etiquetas",1],["ctags","Etiquetas do catálogo (compartilhadas)",1],["authors","Autores",1],["translators","Tradutores",1],["shelf","Prateleira"],["publisher","Editora"],["format","Formato"],["language","Idioma"],["collection","Coleção"],["city","Local"],["pubDate","Ano"]].filter(([k])=>!(ex&&(k==="tags"||k==="shelf"))),d=$("#dlg");
  d.className="";d.innerHTML=`<h2>Editar ${ids.length} item(ns) em massa</h2><div class="g"><label>Campo<select id="bf">${FD.map(([k,l])=>`<option value="${k}">${l}</option>`).join("")}</select></label><label>Ação<select id="bm"><option value="set">Substituir</option><option value="add">Adicionar</option><option value="rm">Remover</option></select></label>
  <label class="full">Valor (listas: separe com ; — etiquetas: com vírgula)<input id="bv"></label></div><div class="ft"><span class="sp"></span><button type="button" id="bx">Cancelar</button><button type="button" id="bok" class="pri">Aplicar</button></div>`;
  d.showModal();$("#bx").onclick=()=>d.close();
- $("#bok").onclick=async()=>{const k=$("#bf").value,m=$("#bm").value,v=$("#bv").value.trim(),list=!!FD.find(x=>x[0]===k)[2],vals=sp(v,k==="tags"?/,/:/;/),arr=ex?catalog:books,it=ids.map(i=>arr.find(x=>x.id===i)).filter(Boolean);
+ $("#bok").onclick=async()=>{const k=$("#bf").value,m=$("#bm").value,v=$("#bv").value.trim(),list=!!FD.find(x=>x[0]===k)[2],vals=sp(v,(k==="tags"||k==="ctags")?/,/:/;/),arr=ex?catalog:books,it=ids.map(i=>arr.find(x=>x.id===i)).filter(Boolean);
   if(!list&&m!=="set")return toast("Adicionar/Remover só vale para campos de lista");
-  it.forEach(b=>{const cu=k==="tags"?(b.tags||[]):sp(b[k]),nv=!list?v:m==="add"?[...new Set([...cu,...vals])]:m==="rm"?cu.filter(x=>!vals.includes(x)):vals;b[k]=(k==="tags"||!list)?nv:nv.join("; ")});
+  it.forEach(b=>{const cu=(k==="tags"||k==="ctags")?(b[k]||[]):sp(b[k]),nv=!list?v:m==="add"?[...new Set([...cu,...vals])]:m==="rm"?cu.filter(x=>!vals.includes(x)):vals;b[k]=(k==="tags"||k==="ctags"||!list)?nv:nv.join("; ")});
   if(ex)it.forEach(b=>b.sy=1);await store(ex?"catalog":"books").putMany(it);if(!ex){toast("Sincronizando com a biblioteca…");for(const b of it)await pushCat(b)}else await propagate(it);d.close();sel.clear();selMode=false;load();toast(`${it.length} itens atualizados`)}}
 $("#selb").onclick=()=>{selMode=!selMode;sel.clear();render()};
 $("#sela").onclick=()=>{filtered().forEach(b=>sel.add(b.id));markSel()};
@@ -605,9 +608,9 @@ $("#seld").onclick=async()=>{const ids=[...sel];if(!ids.length)return toast("Sel
  await store(view==="explorar"?"catalog":"books").delMany(ids);sel.clear();selMode=false;load()};
 /* sugestões a partir do que já existe no banco */
 const uniq=f=>[...new Set([...books,...catalog].flatMap(f).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),"pt-BR"));
-const dls=()=>[["dl_authors",b=>[...sp(b.authors),...sp(b.editors)]],["dl_translators",b=>sp(b.translators)],["dl_editors",b=>[...sp(b.authors),...sp(b.editors)]],["dl_illustrators",b=>sp(b.illustrators)],["dl_categories",b=>sp(b.categories)],["dl_publisher",b=>[b.publisher]],["dl_city",b=>[b.city]],["dl_language",b=>[b.language]],["stores",b=>(b.purchases||[]).map(x=>x.store)],["people",b=>(b.loans||[]).map(x=>x.who)]]
+const dls=()=>[["dl_authors",b=>[...sp(b.authors),...sp(b.editors)]],["dl_translators",b=>sp(b.translators)],["dl_editors",b=>[...sp(b.authors),...sp(b.editors)]],["dl_illustrators",b=>sp(b.illustrators)],["dl_categories",b=>sp(b.categories)],["dl_publisher",b=>[b.publisher]],["dl_city",b=>[b.city]],["dl_language",b=>[b.language]],["dl_ctags",b=>[...(b.tags||[]),...(b.ctags||[])]],["stores",b=>(b.purchases||[]).map(x=>x.store)],["people",b=>(b.loans||[]).map(x=>x.who)]]
  .map(([id,g])=>`<datalist id="${id}">${uniq(g).map(s=>`<option value="${esc(s)}">`).join("")}</datalist>`).join("");
-function wireSug(f){Object.entries({authors:";",translators:";",editors:";",illustrators:";",categories:";",tags:","}).forEach(([k,s])=>{const i=f.elements[k],dl=$("#"+(k==="tags"?"tagl":"dl_"+k));if(!i||!dl)return;
+function wireSug(f){Object.entries({authors:";",translators:";",editors:";",illustrators:";",categories:";",tags:",",ctags:","}).forEach(([k,s])=>{const i=f.elements[k],dl=$("#"+(k==="tags"?"tagl":"dl_"+k));if(!i||!dl)return;
  const all=[...dl.options].map(o=>o.value);
  i.addEventListener("input",()=>{const v=i.value,p=v.lastIndexOf(s),pre=p<0?"":v.slice(0,p+1)+" ",t=norm(v.slice(p+1).trim());
   dl.innerHTML=t?all.filter(x=>norm(x).includes(t)).slice(0,30).map(x=>`<option value="${esc(pre+x)}">`).join(""):""})})}
@@ -666,20 +669,23 @@ let pend=null;
  try{const d=JSON.parse(decodeURIComponent(m[1])),o={};["title","authors","isbn","publisher","pages","language","pubDate","description","cover","buyUrl"].forEach(k=>{if(d[k]!=null&&d[k]!=="")o[k]=k==="pages"?(Number(d[k])||""):String(d[k]).slice(0,3000)});
   ["cover","buyUrl"].forEach(k=>{if(o[k]&&!/^https:\/\//i.test(o[k]))delete o[k]});{const pr=parseFloat(d.price);if(pr>0&&pr<100000)o.price=pr}if(o.title)pend=o}catch{}
  history.replaceState(null,"",location.pathname+location.search)})();
-const takePend=()=>{if(!pend)return;const {price,...o}=pend;pend=null;edit(null,"books",{priceObs:price?{price,date:today(),store:"Amazon",url:o.buyUrl,src:"Amazon"}:undefined,tipo:"livro",copies:1,added:today(),tags:[],wish:false,language:"Pt-Br",purchases:[{store:"Amazon",state:"Novo"}],...o})};
+const takePend=async()=>{if(!pend)return;const {price,...o}=pend;pend=null;const po=price?{price,date:today(),store:"Amazon",url:o.buyUrl,src:"Amazon"}:null;
+ const ex=catalog.find(c=>(o.isbn&&digits(c.isbn)===digits(o.isbn))||same(c)===same({tipo:"livro",...o}));
+ if(ex){if(po)await addPrice(ex.id,po);toast("Esse livro já está no catálogo"+(po?" (preço registrado)":""));return showItem("c",ex.id)}
+ edit(null,"catalog",{tipo:"livro",added:today(),language:"Pt-Br",priceObs:po||undefined,...o})};
 function quick(){const d=$("#dlg"),APP=location.origin+location.pathname;d.className="";
  d.innerHTML=`<h2>Adicionar livros rápido</h2><p class="m">Digite ou escaneie os ISBNs (um por linha). O app procura no catálogo compartilhado, na BrasilAPI (CBL e Mercado Editorial), no Google Livros e na Open Library. O que não for achado entra só com o ISBN, para você completar.</p>
  <textarea id="qi" rows="6" placeholder="9788527300000"></textarea><div id="scv"></div>
  <label class="ck2"><input type="checkbox" id="qw"> Adicionar à lista de desejo</label>
  <div class="ft"><button type="button" id="qs">Escanear código de barras</button><span class="sp"></span><button type="button" id="qx">Fechar</button><button type="button" id="qg" class="pri">Buscar e adicionar</button></div>
- <fieldset><legend>Pela página da Amazon</legend><p class="m">Arraste o botão abaixo para a barra de favoritos. Depois, em qualquer livro da Amazon, clique nele: os dados vêm para cá e você só confere e salva.</p><p><a class="chip on" href="${esc(BM(APP))}" onclick="return false">Enviar para o Acervo</a></p></fieldset>`;
+ <fieldset><legend>Pela página da Amazon</legend><p class="m">Arraste o botão abaixo para a barra de favoritos. Depois, em qualquer livro da Amazon, clique nele: os dados vão para o catálogo (você confere e salva) e depois você adiciona ao seu acervo quando quiser.</p><p><a class="chip on" href="${esc(BM(APP))}" onclick="return false">Enviar para o Catálogo</a></p></fieldset>`;
  d.showModal();$("#qx").onclick=()=>d.close();$("#qs").onclick=()=>scan($("#qi"));$("#qg").onclick=()=>isbnAdd($("#qi").value,$("#qw").checked)}
 $("#addi").onclick=quick;
 /* menu lateral de categorias e etiquetas */
 let sideOn=innerWidth>=900;
 function renderSide(){const s=$("#side"),on=["livros","desejos","explorar"].includes(view)&&sideOn;s.hidden=!on;if(!on)return;const P=pool(),
  mk=(k,t,m)=>m.size?`<h3>${t}</h3>`+[...m].map(([v,c])=>`<button type="button" class="sb${F[k]===v?" on":""}" data-sf="${k}" data-v="${esc(v)}"><span>${esc(v)}</span><b>${c}</b></button>`).join(""):"";
- s.innerHTML=`<button type="button" class="sb${!F.category&&!F.tag&&!F.launch?" on":""}" data-sf="">Tudo</button>`+(view==="explorar"?`<button type="button" class="sb${F.launch?" on":""}" data-sf="launch"><span>Lançamentos</span></button>`:"")+mk("category","Categorias",tally(P.flatMap(b=>sp(b.categories))))+(view==="explorar"?"":mk("tag","Etiquetas",tally(P.flatMap(b=>b.tags||[]))))}
+ s.innerHTML=`<button type="button" class="sb${!F.category&&!F.tag&&!F.launch?" on":""}" data-sf="">Tudo</button>`+(view==="explorar"?`<button type="button" class="sb${F.launch?" on":""}" data-sf="launch"><span>Lançamentos</span></button>`:"")+mk("category","Categorias",tally(P.flatMap(b=>sp(b.categories))))+mk("tag","Etiquetas",tally(P.flatMap(b=>[...new Set([...(b.tags||[]),...(b.ctags||[])])])))}
 $("#side").onclick=e=>{const t=e.target.closest("[data-sf]");if(!t)return;const k=t.dataset.sf;if(k==="launch"){F.launch=!F.launch;return render()}F.launch=false;F.category="";F.tag="";if(k)F[k]=t.dataset.v;F.hits=null;render()};
 $("#sidb").onclick=()=>{sideOn=!sideOn;render()};
 
@@ -688,7 +694,7 @@ const pd=b=>(b.purchases||[]).map(x=>x.date).filter(Boolean).sort().pop()||b.bou
 const SK={title:[b=>norm(b.title),1],title_d:[b=>norm(b.title),-1],author:[b=>norm(b.authors),1],publisher:[b=>norm(b.publisher),1],rating:[b=>b.rating||0,-1],
  year:[b=>parseInt(b.pubDate)||0,-1],year_a:[b=>parseInt(b.pubDate)||9999,1],added:[b=>String(b.added||""),-1],added_a:[b=>String(b.added||"9999"),1],pdate:[b=>pd(b),-1],pdate_a:[b=>pd(b)||"9999",1]};
 /* campos da obra (iguais para todos) x campos do meu exemplar (shelf, tags, nota, leitura, compras, empréstimos…) */
-const SH=["tipo","title","subtitle","authors","translators","editors","illustrators","publisher","city","language","pages","edition","pubDate","format","isbn","categories","collection","series","description","cover","number","volume","month","periodicity","issn","theme","buyUrl","contrib"];
+const SH=["tipo","title","subtitle","authors","translators","editors","illustrators","publisher","city","language","pages","edition","pubDate","format","isbn","categories","collection","series","description","cover","number","volume","month","periodicity","issn","theme","buyUrl","contrib","ctags"];
 const shared=o=>{const x={};SH.forEach(k=>{if(o[k]!==undefined)x[k]=o[k]});return x};
 const diffSh=(c,sh)=>SH.some(k=>sh[k]!==undefined&&JSON.stringify(sh[k]??"")!==JSON.stringify(c[k]??""));
 const overlay=()=>{const cm=new Map(catalog.map(c=>[c.id,c]));books.forEach(b=>{const c=cm.get(b.catId);if(c&&c.sy&&!b.detach)SH.forEach(k=>{if(c[k]!==undefined)b[k]=c[k]})})};
@@ -732,13 +738,13 @@ function vAutores(){const pm=[...personMap().values()],top=pm.slice().sort((a,b)
  ${user?`<h2>No meu acervo</h2>${bars(pm.filter(p=>p.mine).sort((a,b)=>b.mine-a.mine).slice(0,15).map(p=>[p.name,p.mine]))}`:""}
  <h2>Todos (${pm.length})</h2><input id="aq" type="search" placeholder="Buscar autor ou organizador" value="${esc(AQ)}"><div id="aul" style="margin-top:10px"></div>`;
  const draw=()=>{const q=norm(AQ);$("#aul").innerHTML=pm.filter(p=>!q||norm(p.name).includes(q)).sort((a,b)=>norm(a.name).localeCompare(norm(b.name))).slice(0,200).map(p=>{const i=auInfo(p.k);
-  return `<div class="grp"><div class="av">${i.photo?`<img src="${esc(i.photo)}" referrerpolicy="no-referrer" alt="">`:""}</div><div class="gi"><b>${esc(p.name)}</b><div class="m">${p.items.length} no sistema · ${p.w} como autor · ${p.o} como organizador${user?` · ${p.mine} no meu acervo`:""}</div></div><button data-au="${esc(p.k)}">Informações e obras</button></div>`}).join("")||'<p class="m">Ninguém encontrado.</p>'};
+  return `<div class="grp"><div class="av">${i.photo?`<img src="${esc(i.photo)}" referrerpolicy="no-referrer" alt="">`:""}</div><div class="gi"><button type="button" class="lk" data-au="${esc(p.k)}"><b>${esc(p.name)}</b></button><div class="m">${p.items.length} no sistema · ${p.w} como autor · ${p.o} como organizador${user?` · ${p.mine} no meu acervo`:""}</div></div><button data-au="${esc(p.k)}">Informações e obras</button></div>`}).join("")||'<p class="m">Ninguém encontrado.</p>'};
  draw();$("#aq").oninput=e=>{AQ=e.target.value;draw()}}
 function auDlg(k){const p=personMap().get(k)||{name:k,items:[]},i=auInfo(k),d=$("#dlg");d.className="";
  d.innerHTML=`<h2>${esc(p.name)}</h2><div class="pphero">${i.photo?`<div class="ppcv"><img src="${esc(i.photo)}" referrerpolicy="no-referrer" alt="" style="width:100%;border-radius:6px"></div>`:""}<div class="ppin">
  <p class="m">${[i.nationality,i.born&&"nasc. "+i.born,i.died&&"falec. "+i.died].filter(Boolean).map(esc).join(" · ")}</p>${i.site&&/^https?:/i.test(i.site)?`<p><a href="${esc(i.site)}" target="_blank" rel="noopener noreferrer">Site</a></p>`:""}
  <p class="desc">${esc(i.bio||"Sem biografia cadastrada.")}</p></div></div>
- <h3>Obras (${p.items.length})</h3><div>${p.items.map(e=>`<button type="button" class="lk" data-aw="${e.s}:${e.r.id}">${esc(label(e.r))}</button>`).join(" · ")}</div>
+ ${statsHtml(p.items,"au")}<h3>Obras (${p.items.length})</h3><div>${p.items.map(e=>`<button type="button" class="lk" data-aw="${e.s}:${e.r.id}">${esc(label(e.r))}</button>`).join(" · ")}</div>
  ${user?`<fieldset><legend>Informações do autor</legend><div class="g"><label>Nacionalidade<input id="an" value="${esc(i.nationality||"")}"></label><label>Nascimento<input id="ab" value="${esc(i.born||"")}"></label><label>Falecimento<input id="ad" value="${esc(i.died||"")}"></label>
  <label>Foto (URL)<input id="ap" value="${esc(i.photo||"")}"></label><label class="full">Site<input id="as" value="${esc(i.site||"")}"></label><label class="full">Biografia<textarea id="abio" rows="5">${esc(i.bio||"")}</textarea></label></div></fieldset>`:""}
  <div class="ft"><button type="button" id="aw">Ver obras na lista</button><span class="sp"></span><button type="button" id="acl">Fechar</button>${user?'<button type="button" id="asv" class="pri">Salvar informações</button>':""}</div>`;
@@ -750,9 +756,9 @@ function auDlg(k){const p=personMap().get(k)||{name:k,items:[]},i=auInfo(k),d=$(
   try{if(i.id!=null)await putStrict("autores",o);else await store("autores").add(o);d.close();await load();toast("Informações salvas")}
   catch(er){toast("Não foi possível salvar: só o administrador ou quem cadastrou o autor pode alterar.")}}}
 $("#main").addEventListener("click",e=>{const t=e.target.closest("[data-au]");if(t)auDlg(t.dataset.au)});
-function related(s,r){const me=same(r),mine=s==="c"?ownedOf(r):null,out=[],rest=everything().filter(e=>e.r!==r&&e.r!==mine&&same(e.r)!==me),rev=r.tipo==="revista";
+function related(s,r){const me=workKey(r),mine=s==="c"?ownedOf(r):null,out=[],rest=everything().filter(e=>e.r!==r&&e.r!==mine&&workKey(e.r)!==me),rev=r.tipo==="revista";
  if(rev){const t=norm(r.title),l=rest.filter(e=>e.r.tipo==="revista"&&norm(e.r.title)===t).sort(byEdition);if(l.length)out.push({h:`Outras edições de ${r.title}`,l,k:"ed"})}
- else{const eds=everything().filter(e=>e.r!==r&&e.r!==mine&&same(e.r)===me).sort(byEdition);if(eds.length)out.push({h:"Outras edições",l:eds,k:"ed2"})}
+ else{const eds=everything().filter(e=>e.r!==r&&e.r!==mine&&workKey(e.r)===me).sort(byEdition);if(eds.length)out.push({h:"Outras edições",l:eds,k:"ed2"})}
  const seen=new Set(),pp=x=>[...sp(x.authors),...sp(x.editors),...sp(x.translators),...sp(x.illustrators)];
  [...sp(r.authors),...sp(r.editors)].forEach(a=>{const k=akey(a);if(!k||seen.has(k)||seen.size>=4)return;seen.add(k);
   const l=rest.filter(e=>!(rev&&e.r.tipo==="revista"&&norm(e.r.title)===norm(r.title))&&pp(e.r).some(x=>akey(x)===k)).sort(byTitle);
@@ -811,6 +817,86 @@ function vColecoes(){const m=new Map();everything().forEach(e=>{const n=String(e
 $("#main").addEventListener("click",e=>{const b=e.target.closest("[data-cs]");if(b){const t=b.parentElement.querySelector(".ctrack");t.scrollBy({left:+b.dataset.cs*t.clientWidth*.85,behavior:"smooth"});return}
  const c=e.target.closest("[data-ci]");if(c){const [s,i]=c.dataset.ci.split(":");showItem(s,+i)}});
 $("#main").addEventListener("keydown",e=>{if(e.key==="Enter"){const c=e.target.closest("[data-ci]");if(c)c.click()}});
+
+/* ---------- Edições, comparação, editoras, gerenciamento ---------- */
+const edSec=(s,r)=>r.tipo==="revista"?"":`<section class="ppsec"><div class="pph"><h3>Edições</h3><button type="button" class="lk" data-act="newed">Adicionar outra edição</button></div><p class="m">Edição deste item: ${esc(r.edition||"não informada")}. As outras edições da mesma obra aparecem em “Outras edições”.</p></section>`;
+async function addSel(wish){const l=catalog.filter(c=>sel.has(c.id));if(!l.length)return toast("Selecione itens primeiro");const arr=[];let dup=0;
+ for(const c of l){if(ownedOf(c)){dup++;continue}arr.push(toBook(c,{wish}))}
+ if(arr.length)await store("books").addMany(arr);sel.clear();selMode=false;await load();toast(`${arr.length} adicionado(s) ${wish?"à lista de desejo":"ao acervo"}${dup?`, ${dup} já estavam no seu acervo`:""}`)}
+$("#selw").onclick=()=>addSel(true);$("#selo").onclick=()=>addSel(false);$("#selcmp").onclick=compare;
+function compare(){const ex=view==="explorar",l=[...sel].map(i=>(ex?catalog:books).find(x=>x.id===i)).filter(Boolean);
+ if(l.length<2||l.length>4)return toast("Selecione de 2 a 4 livros para comparar");
+ const pr=b=>priceOf(ex?"c":"b",b).l,nm=f=>b=>esc(sp(b[f]).map(nice).join(", ")),
+ R=[["Capa",b=>`<div class="cmpc">${cover(b)}</div>`],["Título",b=>esc(label(b))],["Autores",nm("authors")],["Organizadores",nm("editors")],["Tradutores",nm("translators")],["Editora",b=>esc(b.publisher)],["Edição",b=>esc(b.edition)],["Ano",b=>esc(b.pubDate)],["Páginas",b=>b.pages||""],
+ ["Formato",b=>esc(b.format)],["Idioma",b=>esc(b.language)],["ISBN",b=>esc(b.isbn)],["Coleção",b=>esc(b.collection)],["Categorias",b=>esc(sp(b.categories).join(", "))],["Etiquetas",b=>esc([...new Set([...(b.tags||[]),...(b.ctags||[])])].join(", "))],
+ ["Último preço",b=>{const p=pr(b);return p.length?money(p[p.length-1].price):""}],["Menor preço",b=>{const p=pr(b);return p.length?money(Math.min(...p.map(x=>x.price))):""}]],d=$("#dlg");d.className="";
+ d.innerHTML=`<h2>Comparar livros</h2><p class="m">Linhas com diferenças ficam destacadas.</p><div style="overflow-x:auto"><table class="cmp">${R.map(([n,f])=>{const v=l.map(f);return `<tr class="${n!=="Capa"&&new Set(v).size>1?"df":""}"><th>${n}</th>${v.map(x=>`<td>${x||"—"}</td>`).join("")}</tr>`}).join("")}</table></div><div class="ft"><span class="sp"></span><button type="button" id="cmx" class="pri">Fechar</button></div>`;
+ d.showModal();$("#cmx").onclick=()=>d.close()}
+/* estatísticas (autor / editora) */
+const statsHtml=(its,mode)=>{const rs=its.map(e=>e.r),pg=rs.reduce((a,b)=>a+(+b.pages||0),0),ys=rs.map(b=>parseInt(b.pubDate)).filter(Boolean),rt=its.filter(e=>e.s==="b"&&e.r.rating).map(e=>e.r.rating),
+ top=(f,n)=>[...tally(rs.flatMap(f))].sort((a,b)=>b[1]-a[1]).slice(0,n);
+ return `<div class="kpis">${[["Obras",its.length],["No meu acervo",user?its.filter(e=>e.s==="b"&&!e.r.wish).length:"—"],["Páginas somadas",pg||"—"],["Período",ys.length?(Math.min(...ys)===Math.max(...ys)?Math.min(...ys):Math.min(...ys)+"–"+Math.max(...ys)):"—"],["Nota média",rt.length?(rt.reduce((a,b)=>a+b,0)/rt.length).toFixed(1):"—"]].map(([l,v])=>`<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join("")}</div>
+ <h3>Categorias</h3>${bars(top(b=>sp(b.categories),8))}<h3>Por década</h3>${bars(top(b=>{const y=parseInt(b.pubDate);return y?[Math.floor(y/10)*10+"s"]:[]},8))}
+ ${mode==="au"?`<h3>Editoras</h3>${bars(top(b=>[b.publisher].filter(Boolean),6))}`:`<h3>Autores</h3>${bars(top(b=>sp(b.authors).map(nice),8))}`}`};
+/* editoras */
+const pubMap=()=>{const m=new Map();everything().forEach(e=>{const n=String(e.r.publisher||"").trim();if(!n)return;const k=norm(n);let p=m.get(k);if(!p)m.set(k,p={k,name:n,items:[]});p.items.push(e)});return m};
+let PQ="";
+function vEditoras(){const pm=[...pubMap().values()],top=pm.slice().sort((a,b)=>b.items.length-a.items.length).slice(0,15);
+ $("#main").innerHTML=`<h2 style="margin-top:0">Obras por editora</h2>${bars(top.map(p=>[p.name,p.items.length]))}<h2>Todas (${pm.length})</h2><input id="pq" type="search" placeholder="Buscar editora" value="${esc(PQ)}"><div id="pul" style="margin-top:10px"></div>`;
+ const draw=()=>{const q=norm(PQ);$("#pul").innerHTML=pm.filter(p=>!q||norm(p.name).includes(q)).sort((a,b)=>norm(a.name).localeCompare(norm(b.name))).slice(0,300).map(p=>`<div class="grp"><div class="gi"><button type="button" class="lk" data-pu="${esc(p.k)}"><b>${esc(p.name)}</b></button><div class="m">${p.items.length} obra(s)${user?` · ${p.items.filter(e=>e.s==="b"&&!e.r.wish).length} no meu acervo`:""}</div></div></div>`).join("")||'<p class="m">Nenhuma editora encontrada.</p>'};
+ draw();$("#pq").oninput=e=>{PQ=e.target.value;draw()}}
+function pubDlg(k){const p=pubMap().get(k);if(!p)return;const d=$("#dlg");d.className="";
+ d.innerHTML=`<h2>${esc(p.name)}</h2>${statsHtml(p.items,"pu")}<h3>Obras (${p.items.length})</h3><div>${p.items.map(e=>`<button type="button" class="lk" data-aw="${e.s}:${e.r.id}">${esc(label(e.r))}</button>`).join(" · ")}</div><div class="ft"><button type="button" id="pw">Ver obras na lista</button><span class="sp"></span><button type="button" id="pcl2" class="pri">Fechar</button></div>`;
+ d.showModal();$("#pcl2").onclick=()=>d.close();
+ $$("[data-aw]",d).forEach(b=>b.onclick=()=>{const [s,id]=b.dataset.aw.split(":");d.close();showItem(s,+id)});
+ $("#pw").onclick=()=>{d.close();FAC.forEach(([x])=>F[x]="");F.publisher=p.name;F.hits=null;F.q="";F.tipo="";F.status="";["#q","#ftp"].forEach(x=>$(x).value="");view="explorar";render();$("#adv").open=true;scrollTo(0,0)}}
+$("#main").addEventListener("click",e=>{const t=e.target.closest("[data-pu]");if(t)pubDlg(t.dataset.pu)});
+/* painel de gerenciamento: mesclar autores, editoras, categorias, etiquetas e livros */
+let GM={k:"person",q:"",dup:false},gmSel=new Set(),gmGroups=[];
+const dupKey=n=>norm(n).replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(Boolean).sort().join(" ");
+const gmItems=()=>{const m=new Map(),add=n=>{n=String(n||"").trim();if(n)m.set(n,(m.get(n)||0)+1)};
+ everything().forEach(({r})=>{if(GM.k==="person")["authors","translators","editors","illustrators"].forEach(k=>sp(r[k]).forEach(add));else if(GM.k==="publisher")add(r.publisher);else if(GM.k==="category")sp(r.categories).forEach(add);else[...(r.tags||[]),...(r.ctags||[])].forEach(add)});return m};
+function vGerenciar(){const K=[["person","Autores e organizadores"],["publisher","Editoras"],["category","Categorias"],["tag","Etiquetas"],["book","Livros duplicados"]];
+ let h=`<div class="seg">${K.map(([k,l])=>`<button type="button" data-gk="${k}" class="${GM.k===k?"on":""}">${l}</button>`).join("")}</div>`;
+ if(GM.k==="book"){const g=new Map(),put=(k,c)=>{if(!k)return;if(!g.has(k))g.set(k,[]);g.get(k).push(c)};catalog.forEach(c=>{put("s:"+same(c),c);put(digits(c.isbn)?"i:"+digits(c.isbn):"",c)});
+  const seen=new Set();gmGroups=[...g.values()].filter(a=>a.length>1).filter(a=>{const k=a.map(x=>x.id).sort().join();if(seen.has(k))return false;seen.add(k);return true});
+  h+=`<p class="m">${gmGroups.length} grupo(s) de possíveis duplicados no catálogo (mesmo ISBN, ou mesmo título, autores e edição). ${admin?"Escolha qual manter: os dados que faltarem, preços e vínculos dos outros passam para ele.":"Só o administrador pode mesclar livros do catálogo."}</p>`+
+  gmGroups.map((a,gi)=>`<div class="shelf"><h3 style="margin:0 0 6px">${esc(label(a[0]))}</h3>${a.map((c,i)=>`<label class="ri"><input type="radio" name="keep${gi}" value="${c.id}" ${i===0?"checked":""} style="width:auto"><span>${esc(label(c))} — ${esc(sp(c.authors).map(nice).join(", "))} · ${esc(c.publisher||"")} · ISBN ${esc(c.isbn||"—")}</span></label>`).join("")}<button type="button" class="pri" data-mb="${gi}" ${admin?"":"disabled"}>Mesclar mantendo o marcado</button></div>`).join("")||'<div class="empty">Nenhum duplicado encontrado.</div>'}
+ else{const m=gmItems(),q=norm(GM.q),cnt=new Map();[...m.keys()].forEach(n=>cnt.set(dupKey(n),(cnt.get(dupKey(n))||0)+1));
+  let rows=[...m].filter(([n])=>!q||norm(n).includes(q)).map(([n,c])=>({n,c,k:dupKey(n),d:cnt.get(dupKey(n))>1}));
+  rows=GM.dup?rows.filter(r=>r.d).sort((a,b)=>a.k.localeCompare(b.k)):rows.sort((a,b)=>norm(a.n).localeCompare(norm(b.n)));
+  h+=`<div class="gf"><input id="gmq" type="search" placeholder="Buscar" value="${esc(GM.q)}"><label class="ck2"><input type="checkbox" id="gmd" ${GM.dup?"checked":""}> Só prováveis duplicados</label><button type="button" id="gmm" class="pri">Mesclar / renomear selecionados</button>${GM.k==="tag"?'<button type="button" id="gmres">Resgatar minhas etiquetas do acervo para o catálogo</button>':""}</div>
+  <p class="m">${rows.length} itens. ${admin?"Como administrador, a mudança vale para o catálogo e para o seu acervo.":"Você altera o seu acervo e os itens do catálogo que cadastrou."}</p>`+
+  rows.slice(0,400).map(r=>`<label class="grp"><input type="checkbox" data-gm="${esc(r.n)}" ${gmSel.has(r.n)?"checked":""} style="width:auto"><span class="gi">${esc(r.n)}</span>${r.d?'<span class="chip on">possível duplicado</span>':""}<span class="m">${r.c}</span></label>`).join("")}
+ $("#main").innerHTML=h}
+function gmDlg(){const ns=[...gmSel];if(!ns.length)return toast("Marque os nomes que quer mesclar ou renomear");const d=$("#dlg");d.className="";
+ d.innerHTML=`<h2>${ns.length>1?"Mesclar "+ns.length+" nomes":"Renomear"}</h2><p class="m">Escolha o nome final ou digite outro. Todos os livros com os nomes marcados passam a usar o nome final.</p>${ns.map((n,i)=>`<label class="ck2" style="margin:4px 0"><input type="radio" name="gt" value="${i}" ${i===0?"checked":""} style="width:auto"> ${esc(n)}</label>`).join("")}<label style="display:block;margin-top:10px">Ou digite outro nome<input id="gto"></label><div class="ft"><span class="sp"></span><button type="button" id="gx">Cancelar</button><button type="button" id="gok" class="pri">Aplicar</button></div>`;
+ d.showModal();$("#gx").onclick=()=>d.close();
+ $("#gok").onclick=async()=>{const to=$("#gto").value.trim()||ns[+(d.querySelector("input[name=gt]:checked")||{value:0}).value];if(ns.length===1&&to===ns[0])return toast("Digite um nome diferente");d.close();await gmApply(GM.k,ns,to);gmSel.clear()}}
+async function gmApply(kind,froms,to){const key=x=>kind==="person"?akey(x):norm(x),set=new Set(froms.map(key)),
+ FS=kind==="person"?["authors","translators","editors","illustrators"]:kind==="publisher"?["publisher"]:kind==="category"?["categories"]:["tags","ctags"],isA=k=>k==="tags"||k==="ctags";
+ const upd=b=>{let ch=false;FS.forEach(k=>{const raw=isA(k)?(b[k]||[]):k==="publisher"?[b[k]].filter(Boolean):sp(b[k]);if(!raw.some(x=>set.has(key(x))))return;
+  const out=[];raw.forEach(x=>{const y=set.has(key(x))?to:x;if(!out.some(z=>key(z)===key(y)))out.push(y)});b[k]=k==="publisher"?out[0]:isA(k)?out:out.join("; ");ch=true});return ch};
+ toast("Aplicando…");const cc=admin?catalog.filter(upd):[],bb=books.filter(upd);cc.forEach(c=>c.sy=1);
+ try{if(cc.length)await store("catalog").putMany(cc);if(bb.length)await store("books").putMany(bb);if(!admin)for(const b of bb)await pushCat(b);
+  if(kind==="person"){const tk=akey(to);for(const f of froms){const fk=akey(f);if(fk===tk)continue;const row=autores.find(a=>a.key===fk);if(row&&!autores.some(a=>a.key===tk)){try{await putStrict("autores",{...row,key:tk,name:nice(to)})}catch{}}}}
+  await load();toast(`Pronto: ${cc.length} item(ns) do catálogo e ${bb.length} do seu acervo atualizados`)}catch(e){toast("Não consegui concluir: "+(e.message||e));await load()}}
+async function gmRescue(){const ch=[];books.forEach(b=>{if(!(b.tags||[]).length||b.catId==null)return;const c=catalog.find(x=>x.id===b.catId);if(!c)return;const u=[...new Set([...(c.ctags||[]),...b.tags])];if(u.length!==(c.ctags||[]).length){c.ctags=u;c.sy=1;ch.push(c)}});
+ if(!ch.length)return toast("Nada novo para resgatar");if(!admin){await load();return toast("Só o administrador pode gravar etiquetas no catálogo")}
+ try{await store("catalog").putMany(ch);await propagate(ch);await load();toast(`${ch.length} itens do catálogo receberam etiquetas do seu acervo`)}catch(e){toast("Não consegui gravar: "+(e.message||e))}}
+async function gmMergeGroup(gi){if(!admin)return;const a=gmGroups[gi],keep=+(document.querySelector(`input[name=keep${gi}]:checked`)||{}).value,drops=a.map(x=>x.id).filter(i=>i!==keep);if(!keep||!drops.length)return;
+ if(!confirm(`Mesclar ${a.length} itens em um só? Os outros serão removidos do catálogo.`))return;toast("Mesclando…");
+ try{const k=catalog.find(c=>c.id===keep),ds=drops.map(i=>catalog.find(c=>c.id===i)).filter(Boolean);
+  ds.forEach(d=>{SH.forEach(f=>{if((k[f]===undefined||k[f]===""||(Array.isArray(k[f])&&!k[f].length))&&d[f])k[f]=d[f]});k.ctags=[...new Set([...(k.ctags||[]),...(d.ctags||[])])]});k.sy=1;await putStrict("catalog",k);
+  for(const d of ds)for(const p of precos.filter(x=>x.cat===d.id))await addPrice(keep,p);
+  const dk=drops.map(i=>"c:"+i),fix=x=>{let ch=false;(x.refs||[]).forEach(r=>{if(dk.includes(r.k)){r.k="c:"+keep;ch=true}});return ch};
+  const bc=books.filter(b=>drops.includes(b.catId)),br=books.filter(fix),cr=catalog.filter(fix);bc.forEach(b=>b.catId=keep);
+  const bs=[...new Set([...bc,...br])];if(bs.length)await store("books").putMany(bs);if(cr.length)await store("catalog").putMany(cr);
+  await store("catalog").delMany(drops);await load();toast("Itens mesclados")}catch(e){toast("Não consegui mesclar: "+(e.message||e));await load()}}
+$("#main").addEventListener("click",e=>{const t=e.target,k=t.closest("[data-gk]");if(k){GM.k=k.dataset.gk;GM.q="";gmSel.clear();return vGerenciar()}
+ if(t.id==="gmm")return gmDlg();if(t.id==="gmres")return gmRescue();const mb=t.closest("[data-mb]");if(mb)gmMergeGroup(+mb.dataset.mb)});
+$("#main").addEventListener("change",e=>{const t=e.target;if(t.dataset&&t.dataset.gm!==undefined){t.checked?gmSel.add(t.dataset.gm):gmSel.delete(t.dataset.gm)}if(t.id==="gmd"){GM.dup=t.checked;vGerenciar()}});
+$("#main").addEventListener("input",e=>{if(e.target.id==="gmq"){GM.q=e.target.value;vGerenciar();const i=$("#gmq");i.focus();i.setSelectionRange(i.value.length,i.value.length)}});
 
 /* ---------- Login e inicialização ---------- */
 const authBox=(msg,err)=>{$("#auth").hidden=false;$("#am").textContent=msg||"";$("#ae").textContent=err||""};
