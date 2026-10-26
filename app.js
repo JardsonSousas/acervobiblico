@@ -388,7 +388,9 @@ async function popClick(e){
   const a=t.dataset.act;if(a==="close")return d.close();
   if(a==="back"){const p=stack.pop();return p&&paint(p.s,p.id)}
   if(!cur)return;const {s,id}=cur,r=(s==="b"?books:catalog).find(x=>x.id===id);if(!r)return;
-  if(a==="newed"){if(need()){const b=shared(r);["isbn","cover","pages","pubDate","edition","buyUrl"].forEach(k=>delete b[k]);b.added=today();edit(null,"catalog",b)}return}
+  if(a==="newed"){if(!need())return;const wid=await linkEditions([r],true),b=shared(r);["isbn","cover","pages","pubDate","edition","buyUrl"].forEach(k=>delete b[k]);b.work=wid;b.added=today();edit(null,"catalog",b);return}
+  if(a==="linked"){if(need())edLinkDlg(s,r);return}
+  if(a==="unlink"){if(need()&&confirm("Desvincular este item das outras edições?")){await unlinkEdition(r);paint(s,id)}return}
   if(a==="price")return priceDlg(s,id,r);
   if(a==="copycat"){if(s==="b"&&need()){await copyToCat([r]);paint(s,id)}return}
   if(["wish","add","own"].includes(a)&&!need())return;
@@ -694,7 +696,7 @@ const pd=b=>(b.purchases||[]).map(x=>x.date).filter(Boolean).sort().pop()||b.bou
 const SK={title:[b=>norm(b.title),1],title_d:[b=>norm(b.title),-1],author:[b=>norm(b.authors),1],publisher:[b=>norm(b.publisher),1],rating:[b=>b.rating||0,-1],
  year:[b=>parseInt(b.pubDate)||0,-1],year_a:[b=>parseInt(b.pubDate)||9999,1],added:[b=>String(b.added||""),-1],added_a:[b=>String(b.added||"9999"),1],pdate:[b=>pd(b),-1],pdate_a:[b=>pd(b)||"9999",1]};
 /* campos da obra (iguais para todos) x campos do meu exemplar (shelf, tags, nota, leitura, compras, empréstimos…) */
-const SH=["tipo","title","subtitle","authors","translators","editors","illustrators","publisher","city","language","pages","edition","pubDate","format","isbn","categories","collection","series","description","cover","number","volume","month","periodicity","issn","theme","buyUrl","contrib","ctags"];
+const SH=["tipo","title","subtitle","authors","translators","editors","illustrators","publisher","city","language","pages","edition","pubDate","format","isbn","categories","collection","series","description","cover","number","volume","month","periodicity","issn","theme","buyUrl","contrib","ctags","work"];
 const shared=o=>{const x={};SH.forEach(k=>{if(o[k]!==undefined)x[k]=o[k]});return x};
 const diffSh=(c,sh)=>SH.some(k=>sh[k]!==undefined&&JSON.stringify(sh[k]??"")!==JSON.stringify(c[k]??""));
 const overlay=()=>{const cm=new Map(catalog.map(c=>[c.id,c]));books.forEach(b=>{const c=cm.get(b.catId);if(c&&c.sy&&!b.detach)SH.forEach(k=>{if(c[k]!==undefined)b[k]=c[k]})})};
@@ -756,9 +758,9 @@ function auDlg(k){const p=personMap().get(k)||{name:k,items:[]},i=auInfo(k),d=$(
   try{if(i.id!=null)await putStrict("autores",o);else await store("autores").add(o);d.close();await load();toast("Informações salvas")}
   catch(er){toast("Não foi possível salvar: só o administrador ou quem cadastrou o autor pode alterar.")}}}
 $("#main").addEventListener("click",e=>{const t=e.target.closest("[data-au]");if(t)auDlg(t.dataset.au)});
-function related(s,r){const me=workKey(r),mine=s==="c"?ownedOf(r):null,out=[],rest=everything().filter(e=>e.r!==r&&e.r!==mine&&workKey(e.r)!==me),rev=r.tipo==="revista";
+function related(s,r){const me=wk(r),mine=s==="c"?ownedOf(r):null,out=[],rest=everything().filter(e=>e.r!==r&&e.r!==mine&&wk(e.r)!==me),rev=r.tipo==="revista";
  if(rev){const t=norm(r.title),l=rest.filter(e=>e.r.tipo==="revista"&&norm(e.r.title)===t).sort(byEdition);if(l.length)out.push({h:`Outras edições de ${r.title}`,l,k:"ed"})}
- else{const eds=everything().filter(e=>e.r!==r&&e.r!==mine&&workKey(e.r)===me).sort(byEdition);if(eds.length)out.push({h:"Outras edições",l:eds,k:"ed2"})}
+ else{const eds=everything().filter(e=>e.r!==r&&e.r!==mine&&wk(e.r)===me).sort(byEdition);if(eds.length)out.push({h:"Outras edições",l:eds,k:"ed2"})}
  const seen=new Set(),pp=x=>[...sp(x.authors),...sp(x.editors),...sp(x.translators),...sp(x.illustrators)];
  [...sp(r.authors),...sp(r.editors)].forEach(a=>{const k=akey(a);if(!k||seen.has(k)||seen.size>=4)return;seen.add(k);
   const l=rest.filter(e=>!(rev&&e.r.tipo==="revista"&&norm(e.r.title)===norm(r.title))&&pp(e.r).some(x=>akey(x)===k)).sort(byTitle);
@@ -819,7 +821,7 @@ $("#main").addEventListener("click",e=>{const b=e.target.closest("[data-cs]");if
 $("#main").addEventListener("keydown",e=>{if(e.key==="Enter"){const c=e.target.closest("[data-ci]");if(c)c.click()}});
 
 /* ---------- Edições, comparação, editoras, gerenciamento ---------- */
-const edSec=(s,r)=>r.tipo==="revista"?"":`<section class="ppsec"><div class="pph"><h3>Edições</h3><button type="button" class="lk" data-act="newed">Adicionar outra edição</button></div><p class="m">Edição deste item: ${esc(r.edition||"não informada")}. As outras edições da mesma obra aparecem em “Outras edições”.</p></section>`;
+const edSec=(s,r)=>r.tipo==="revista"?"":`<section class="ppsec"><div class="pph"><h3>Edições</h3><span><button type="button" class="lk" data-act="newed">Adicionar outra edição</button><button type="button" class="lk" data-act="linked">Vincular edição existente</button>${r.work?'<button type="button" class="lk" data-act="unlink">Desvincular</button>':""}</span></div><p class="m">Edição deste item: ${esc(r.edition||"não informada")}. As outras edições da mesma obra aparecem em “Outras edições”.</p></section>`;
 async function addSel(wish){const l=catalog.filter(c=>sel.has(c.id));if(!l.length)return toast("Selecione itens primeiro");const arr=[];let dup=0;
  for(const c of l){if(ownedOf(c)){dup++;continue}arr.push(toBook(c,{wish}))}
  if(arr.length)await store("books").addMany(arr);sel.clear();selMode=false;await load();toast(`${arr.length} adicionado(s) ${wish?"à lista de desejo":"ao acervo"}${dup?`, ${dup} já estavam no seu acervo`:""}`)}
@@ -897,6 +899,25 @@ $("#main").addEventListener("click",e=>{const t=e.target,k=t.closest("[data-gk]"
  if(t.id==="gmm")return gmDlg();if(t.id==="gmres")return gmRescue();const mb=t.closest("[data-mb]");if(mb)gmMergeGroup(+mb.dataset.mb)});
 $("#main").addEventListener("change",e=>{const t=e.target;if(t.dataset&&t.dataset.gm!==undefined){t.checked?gmSel.add(t.dataset.gm):gmSel.delete(t.dataset.gm)}if(t.id==="gmd"){GM.dup=t.checked;vGerenciar()}});
 $("#main").addEventListener("input",e=>{if(e.target.id==="gmq"){GM.q=e.target.value;vGerenciar();const i=$("#gmq");i.focus();i.setSelectionRange(i.value.length,i.value.length)}});
+
+/* ---------- Vincular livros já existentes como edições da mesma obra ---------- */
+const wk=b=>b.work?"w:"+b.work:workKey(b);
+async function linkEditions(recs,quiet){const cats=[];
+ for(const r of recs){const c=books.includes(r)?(catalog.find(x=>x.id===r.catId)||await ensureCat(r)):r;if(c&&!cats.includes(c))cats.push(c)}
+ const keys=new Set(cats.map(wk)),grp=catalog.filter(c=>keys.has(wk(c))),id=cats.map(c=>c.work).find(Boolean)||"w"+Date.now().toString(36);let fail=0;
+ grp.forEach(c=>{c.work=id;c.sy=1});
+ try{if(admin)await store("catalog").putMany(grp);else for(const c of grp){try{await putStrict("catalog",c)}catch{fail++}}}catch(e){toast("Não consegui vincular: "+(e.message||e));return id}
+ await propagate(grp);await load();if(!quiet)toast(fail?`Vinculado no seu acervo; ${fail} item(ns) do catálogo só o administrador (ou quem os cadastrou) pode alterar`:"Edições vinculadas");return id}
+async function unlinkEdition(r){const c=books.includes(r)?catalog.find(x=>x.id===r.catId):r;if(!c)return;c.work="u"+c.id+Date.now().toString(36);c.sy=1;
+ try{await putStrict("catalog",c)}catch(e){return toast("Só o administrador (ou quem cadastrou) pode desvincular: "+(e.message||e))}
+ await propagate([c]);await load();toast("Item desvinculado das outras edições")}
+function edLinkDlg(s,r){const d=$("#dlg");d.className="";let res=[];
+ d.innerHTML=`<h2>Vincular edição já existente</h2><p class="m">Busque um livro que já está no sistema e vincule-o como outra edição de “${esc(label(r))}”. Os dois passam a aparecer juntos, mesmo com títulos ou autores escritos de outro jeito.</p><input id="elq" type="search" placeholder="Título, autor ou ISBN"><div id="elr" style="margin-top:8px"></div><div class="ft"><span class="sp"></span><button type="button" id="elx">Voltar</button></div>`;
+ d.open||d.showModal();$("#elx").onclick=()=>showItem(s,r.id);const mine=s==="c"?ownedOf(r):null;
+ $("#elq").oninput=e=>{const q=norm(e.target.value.trim());res=q.length<2?[]:everything().filter(x=>x.r!==r&&x.r!==mine&&x.r.tipo!=="revista"&&norm([x.r.title,x.r.authors,x.r.isbn,x.r.edition,x.r.publisher].join(" ")).includes(q)).slice(0,15);
+  $("#elr").innerHTML=res.map((x,i)=>`<button type="button" data-el="${i}" style="display:block;width:100%;text-align:left;margin-bottom:4px">${esc(label(x.r))} <span class="m">— ${esc(sp(x.r.authors).map(nice).join(", "))} · ${esc(x.r.publisher||"")} · ISBN ${esc(x.r.isbn||"—")}</span></button>`).join("")||'<p class="m">Digite ao menos 2 letras.</p>'};
+ $("#elr").onclick=async e=>{const b=e.target.closest("[data-el]");if(!b)return;await linkEditions([r,res[+b.dataset.el].r]);showItem(s,r.id)}}
+$("#sele").onclick=()=>{const l=(view==="explorar"?catalog:books).filter(x=>sel.has(x.id));if(l.length<2)return toast("Selecione 2 ou mais livros");linkEditions(l).then(()=>{sel.clear();selMode=false;render()})};
 
 /* ---------- Login e inicialização ---------- */
 const authBox=(msg,err)=>{$("#auth").hidden=false;$("#am").textContent=msg||"";$("#ae").textContent=err||""};
