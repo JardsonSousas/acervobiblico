@@ -10,10 +10,14 @@
 <header class="top">
   <h1>Acervo Bíblico <small id="total"></small></h1>
   <div class="acts"><span id="who" class="m"></span><button id="in" class="pri" hidden>Entrar</button><button id="add" class="pri">Novo item</button><button id="addi" hidden>Adicionar por ISBN</button><button id="bk">Backup</button><button id="out">Sair</button></div>
-  <nav id="tabs">
-    <button data-v="livros">Acervo</button><button data-v="explorar">Explorar</button><button data-v="desejos">Lista de desejo</button>
-    <button data-v="autores">Autores</button><button data-v="colecoes">Coleções</button><button data-v="editoras">Editoras</button><button data-v="gerenciar">Gerenciar</button><button data-v="prateleiras">Prateleiras</button><button data-v="etiquetas">Etiquetas</button>
+  <nav id="tabs" aria-label="Seções">
+    <button data-v="livros">Acervo</button><button data-v="prateleiras">Prateleiras</button><button data-v="explorar">Explorar</button><button data-v="desejos">Lista de desejo</button>
+    <span class="tsep" aria-hidden="true"></span>
+    <button data-v="autores">Autores</button><button data-v="editoras">Editoras</button><button data-v="colecoes">Coleções</button>
+    <span class="tsep" aria-hidden="true"></span>
     <button data-v="stats">Estatísticas</button><button data-v="metas">Metas de leitura</button>
+    <span class="tsep" aria-hidden="true"></span>
+    <button data-v="gerenciar">Gerenciar</button>
   </nav>
 </header>
 

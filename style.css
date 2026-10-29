@@ -219,3 +219,11 @@ body.lock>header,body.lock>#tools,body.lock>main{display:none}
 .cmp td{padding:6px 8px;vertical-align:top;border-top:1px solid var(--line);min-width:130px}.cmp tr.df td{background:rgba(201,138,16,.14)}
 .cmpc img,.cmpc .nocover{width:90px}
 label.grp{cursor:pointer}
+
+/* ---------- abas agrupadas e tabela de dados ---------- */
+.tsep{flex:none;width:1px;background:var(--line);margin:9px 8px}
+.tbw{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:8px}
+.tbl{border-collapse:collapse;width:max-content;min-width:100%;font-size:.85rem}
+.tbl th{position:sticky;top:0;background:var(--card);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:1}
+.tbl td{padding:4px 8px;border-top:1px solid var(--line);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbl td.bl{background:rgba(179,55,47,.14);color:var(--bad);text-align:center}.tbl td.na{background:rgba(95,106,134,.10)}
