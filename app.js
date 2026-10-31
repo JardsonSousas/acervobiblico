@@ -76,7 +76,7 @@ function filtered(skipSt){
     &&(!F.launch||isLaunch(b))&&FAC.every(([k,,g])=>!F[k]||g(b).includes(F[k]))
     &&(!q||norm([b.title,b.subtitle,b.authors,b.translators,b.editors,b.isbn,b.shelf,b.publisher,b.categories,b.collection,b.note,b.issn,b.theme,b.number,[...(b.tags||[]),...(b.ctags||[])].join(" ")].join(" ")).includes(q)));
   const [kf,dr]=SK[F.sort]||SK.added;
-  return l.sort((a,b)=>{const x=kf(a),y=kf(b);return (x<y?-1:x>y?1:0)*dr})}
+  return l.sort((a,b)=>{const x=kf(a),y=kf(b);return ((x<y?-1:x>y?1:0)*dr)||((+b.id||0)-(+a.id||0))})}
 
 /* ---------- Referências bibliográficas (ABNT simplificada) ---------- */
 const auth=b=>{const a=sp(b.authors),f=x=>{const i=x.indexOf(",");return i<0?x:x.slice(0,i).toUpperCase()+x.slice(i)};return a.length>3?f(a[0])+" et al.":a.map(f).join("; ")};
@@ -115,8 +115,10 @@ function render(){chrome();renderSide();
   const list=["livros","desejos","explorar"].includes(view);
   $("#tools").hidden=!list;$("#exp").hidden=view!=="explorar";
   const P=pool();
-  $("#facets").innerHTML=FAC.map(([k,l,g])=>{const m=tally(P.flatMap(g).filter(Boolean));
-    return m.size?`<label>${l}<select data-f="${k}"><option value="">Todos</option>${[...m].map(([v,c])=>`<option value="${esc(v)}" ${F[k]===v?"selected":""}>${esc(v)} (${c})</option>`).join("")}</select></label>`:""}).join("")+'<button id="clr">Limpar filtros</button>';
+  $("#facets").innerHTML=(()=>{const GR=[["Pessoas",["author","translator","contrib","person"]],["Publicação",["publisher","year","collection"]],["Classificação",["category","tag"]]],used=new Set(GR.flatMap(g=>g[1])),
+   sel=([k,l,g])=>{const m=tally(P.flatMap(g).filter(Boolean));return m.size?`<label>${l}<select data-f="${k}"><option value="">Todos</option>${[...m].map(([v,c])=>`<option value="${esc(v)}" ${F[k]===v?"selected":""}>${esc(v)} (${c})</option>`).join("")}</select></label>`:""},
+   grp=(t,ks)=>{const h=FAC.filter(f=>ks.includes(f[0])).map(sel).join("");return h?`<fieldset class="fg"><legend>${t}</legend><div class="fgrid">${h}</div></fieldset>`:""};
+   return GR.map(([t,ks])=>grp(t,ks)).join("")+grp("Outros",FAC.map(f=>f[0]).filter(k=>!used.has(k)))+'<button id="clr">Limpar filtros</button>'})();
   const sb=$("#stbar");sb.hidden=view==="explorar"||!list;
   if(!sb.hidden){const base=filtered(true);
     sb.innerHTML=[["","Todos",base.length],...["Não lido","Lendo","Lido"].map(x=>[x,x,base.filter(b=>status(b)===x).length])]
@@ -124,8 +126,8 @@ function render(){chrome();renderSide();
   $("#main").className="";
   ({gerenciar:vGerenciar,editoras:vEditoras,colecoes:vColecoes,autores:vAutores,livros:vLivros,desejos:vLivros,explorar:vLivros,prateleiras:()=>vGroup("shelf"),etiquetas:()=>vGroup("tag"),stats:vStats,metas:vMetas})[view]();
 }
-function vLivros(){const l=filtered(),ex=view==="explorar";$("#main").className=mode==="grade"?"grid":"lista";
-  $("#main").innerHTML=l.length?l.map(card).join(""):`<div class="empty">${ex?(catalog.length?"Nada encontrado no catálogo. Use “Buscar na internet” para trazer novos livros.":"O catálogo está vazio. Use “Buscar na internet”, importe uma planilha ou JSON para o catálogo, ou cadastre manualmente."):books.length?"Nenhum item encontrado com esses filtros.":"Sua estante está vazia. Clique em “Novo item” para começar ou importe um backup."}</div>`;
+function vLivros(){const l=filtered(),ex=view==="explorar";$("#main").className=mode==="grade"?"grid":mode==="lista"?"lista":"tabela";
+  $("#main").innerHTML=l.length?(mode==="tabela"?tblHtml(l):l.map(card).join("")):`<div class="empty">${ex?(catalog.length?"Nada encontrado no catálogo. Use “Buscar na internet” para trazer novos livros.":"O catálogo está vazio. Use “Buscar na internet”, importe uma planilha ou JSON para o catálogo, ou cadastre manualmente."):books.length?"Nenhum item encontrado com esses filtros.":"Sua estante está vazia. Clique em “Novo item” para começar ou importe um backup."}</div>`;
   $("#cnt").textContent=`${l.length} ${ex?"no catálogo":view==="desejos"?"na lista de desejo":"itens"}`;
   markSel();$("#hitbar").innerHTML=F.hits?'<span class="m">Mostrando os resultados da última busca online.</span> <button id="allc">Ver todo o catálogo</button>':""}
 const hh=s=>[...String(s)].reduce((a,c)=>(a*31+c.charCodeAt(0))>>>0,7);
@@ -550,7 +552,7 @@ $("#stbar").onclick=e=>{const t=e.target.closest("[data-st]");if(t){F.status=t.d
 $("#facets").onchange=e=>{const k=e.target.dataset.f;if(k){F[k]=e.target.value;render()}};
 $("#facets").onclick=e=>{if(e.target.id==="clr"){FAC.forEach(([k])=>F[k]="");F.q="";F.hits=null;$("#q").value="";render()}};
 $("#hitbar").onclick=e=>{if(e.target.id==="allc"){F.hits=null;render()}};
-$("#vm").onclick=e=>{mode=mode==="grade"?"lista":"grade";e.target.textContent=mode==="grade"?"Ver em lista":"Ver em grade";render()};
+$("#vseg").onclick=e=>{const t=e.target.closest("[data-vm]");if(t){mode=t.dataset.vm;render()}};
 $("#rnd").onclick=()=>{const c=own().filter(b=>status(b)==="Não lido"&&(F.tipo?(b.tipo||"livro")===F.tipo:b.tipo!=="revista"));c.length?showItem("b",c[Math.floor(Math.random()*c.length)].id):toast("Nenhum item não lido encontrado")};
 $("#main").onclick=async e=>{
   const t=e.target.closest("[data-id],[data-go],[data-ren],[data-dg],[data-sm]");if(!t)return;const D=t.dataset;
@@ -593,11 +595,11 @@ function cfgDlg(){const d=$("#dlg");d.className="";
  const go=()=>{LC.ar=$("#car").value;LC.w=+$("#cw").value;LC.fit=$("#cfit").value;LC.f=$$("[data-cf]",d).filter(x=>x.checked).map(x=>x.dataset.cf);$("#cwv").textContent=LC.w;
   try{localStorage.setItem("lc",JSON.stringify(LC))}catch{}applyLC();render()};
  d.oninput=go;$("#cfok").onclick=()=>{d.oninput=null;d.close()}}
-function chrome(){const ex=view==="explorar",can=(user&&(view==="livros"||view==="desejos"))||(ex&&user);
+function chrome(){syncSort();uiFilters();const ex=view==="explorar",can=(user&&(view==="livros"||view==="desejos"))||(ex&&user);
  $("#addi").hidden=!user;$("#sidb").hidden=!["livros","desejos","explorar"].includes(view);$("#in").hidden=!!user;$("#out").hidden=!user;$("#add").hidden=!user;$("#bk").hidden=!user;$("#rnd").hidden=!user;
- $$("#tabs button").forEach(b=>b.hidden=!user&&!["explorar","autores","colecoes","editoras"].includes(b.dataset.v));$$("#tabs .tsep").forEach(s=>s.hidden=!user);$$("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.v===view?"page":"false"));try{localStorage.setItem("ui",JSON.stringify({sort:F.sort,mode,sideOn}))}catch{}
+ $$("#tabs button").forEach(b=>b.hidden=!user&&!["explorar","autores","colecoes","editoras"].includes(b.dataset.v));$$("#tabs .tsep").forEach(s=>s.hidden=!user);$$("#tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.v===view?"page":"false"));saveUI();
  if(!can){selMode=false;sel.clear()}
- $("#selb").hidden=!can;$("#selcat").hidden=ex;$("#selw").hidden=$("#selo").hidden=!ex;$("#selm").hidden=$("#seld").hidden=ex&&!admin;$("#selact").hidden=!selMode;$("#selb").textContent=selMode?"Sair da seleção":"Selecionar";$("#cfg").hidden=mode!=="lista"}
+ $("#selb").hidden=!can;$("#selcat").hidden=ex;$("#selw").hidden=$("#selo").hidden=!ex;$("#selm").hidden=$("#seld").hidden=ex&&!admin;$("#selact").hidden=!selMode;$("#selb").textContent=selMode?"Sair da seleção":"Selecionar";$("#cfg").hidden=mode!=="lista";$$("#vseg button").forEach(b=>{const on=b.dataset.vm===mode;b.classList.toggle("on",on);b.setAttribute("aria-pressed",on)});$("#qx").hidden=!$("#q").value}
 const markSel=()=>{$$("#main [data-id]").forEach(e=>e.classList.toggle("sel",selMode&&sel.has(+e.dataset.id)));$("#selc").textContent=sel.size+" selecionado(s)"};
 function bulk(){const ex=view==="explorar",ids=[...sel];if(!ids.length)return toast("Selecione itens primeiro");
  const FD=[["categories","Categorias",1],["tags","Minhas etiquetas",1],["ctags","Etiquetas do catálogo (compartilhadas)",1],["authors","Autores",1],["translators","Tradutores",1],["shelf","Prateleira"],["publisher","Editora"],["format","Formato"],["language","Idioma"],["collection","Coleção"],["city","Local"],["pubDate","Ano"]].filter(([k])=>!(ex&&(k==="tags"||k==="shelf"))),d=$("#dlg");
@@ -699,7 +701,7 @@ $("#sidb").onclick=()=>{sideOn=!sideOn;render()};
 
 /* ---------- Biblioteca compartilhada, autores, ordenação, citar novo livro ---------- */
 const pd=b=>(b.purchases||[]).map(x=>x.date).filter(Boolean).sort().pop()||b.boughtDate||"";
-const SK={title:[b=>norm(b.title),1],title_d:[b=>norm(b.title),-1],author:[b=>norm(b.authors),1],publisher:[b=>norm(b.publisher),1],rating:[b=>b.rating||0,-1],
+const SK={cad:[b=>+b.id||0,-1],cad_a:[b=>+b.id||0,1],title:[b=>norm(b.title),1],title_d:[b=>norm(b.title),-1],author:[b=>norm(b.authors),1],publisher:[b=>norm(b.publisher),1],rating:[b=>b.rating||0,-1],
  year:[b=>parseInt(b.pubDate)||0,-1],year_a:[b=>parseInt(b.pubDate)||9999,1],added:[b=>String(b.added||""),-1],added_a:[b=>String(b.added||"9999"),1],pdate:[b=>pd(b),-1],pdate_a:[b=>pd(b)||"9999",1]};
 /* campos da obra (iguais para todos) x campos do meu exemplar (shelf, tags, nota, leitura, compras, empréstimos…) */
 const SH=["tipo","title","subtitle","authors","translators","editors","illustrators","publisher","city","language","pages","edition","pubDate","format","isbn","categories","collection","series","description","cover","number","volume","month","periodicity","issn","theme","buyUrl","contrib","ctags","work","pubYear"];
@@ -946,8 +948,39 @@ function gtHtml(){const src=GT.src==="b"?books:catalog,q=norm(GT.q);let rows=src
 $("#main").addEventListener("input",e=>{if(e.target.id==="gtq"){GT.q=e.target.value;GT.n=150;vGerenciar();const i=$("#gtq");i.focus();i.setSelectionRange(i.value.length,i.value.length)}});
 $("#main").addEventListener("change",e=>{const t=e.target;if(t.id==="gtsrc"){GT.src=t.value;GT.n=150;vGerenciar()}else if(t.id==="gtb"){GT.blank=t.value;GT.n=150;vGerenciar()}else if(t.id==="gto"){GT.only=t.checked;GT.n=150;vGerenciar()}});
 $("#main").addEventListener("click",e=>{if(e.target.id==="gtmore"){GT.n+=150;vGerenciar();return}const g=e.target.closest("[data-ge]");if(g)edit(+g.dataset.ge,GT.src==="b"?"books":"catalog")});
-{const U=(()=>{try{return JSON.parse(localStorage.getItem("ui"))||{}}catch{return{}}})();if(U.sort&&SK[U.sort])F.sort=U.sort;if(U.mode==="grade"||U.mode==="lista")mode=U.mode;if(typeof U.sideOn==="boolean")sideOn=U.sideOn;$("#so").value=F.sort}
 document.addEventListener("keydown",e=>{if(e.key==="/"&&!e.ctrlKey&&!e.metaKey&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&!$("#dlg").open&&!$("#tools").hidden){e.preventDefault();$("#q").focus()}});
+
+/* ---------- Barra de ferramentas, tabela, ordenação por tela ---------- */
+const UI=(()=>{try{const u=JSON.parse(localStorage.getItem("ui"))||{};u.sorts=u.sorts||{};return u}catch{return{sorts:{}}}})();
+const saveUI=()=>{try{localStorage.setItem("ui",JSON.stringify({sorts:UI.sorts,mode,sideOn}))}catch{}};
+if(["grade","lista","tabela"].includes(UI.mode))mode=UI.mode;if(typeof UI.sideOn==="boolean")sideOn=UI.sideOn;
+const DEF={livros:"pdate",desejos:"cad",explorar:"cad"};let lastV=null;
+function syncSort(){if(view===lastV)return;lastV=view;const s=UI.sorts[view]||DEF[view];if(s&&SK[s]){F.sort=s;$("#so").value=s}}
+$("#so").addEventListener("change",e=>{UI.sorts[view]=e.target.value;saveUI()});
+function uiFilters(){const ch=[];if(F.tipo)ch.push(["tipo",F.tipo==="livro"?"Só livros":"Só revistas"]);if(F.status&&view!=="explorar")ch.push(["status","Status: "+F.status]);if(F.launch)ch.push(["launch","Lançamentos"]);
+ FAC.forEach(([k,l])=>{if(F[k])ch.push([k,l+": "+F[k]])});
+ const n=FAC.filter(([k])=>F[k]).length+(F.launch?1:0);$("#advb").innerHTML="Filtros"+(n?` <span class="badge">${n}</span>`:"");
+ const c=$("#chips");c.hidden=!ch.length||!["livros","desejos","explorar"].includes(view);
+ c.innerHTML=ch.map(([k,t])=>`<button type="button" class="chip on" data-rm="${k}" aria-label="Remover filtro ${esc(t)}">${esc(t)} ×</button>`).join("")+(ch.length>1?'<button type="button" class="lk" data-rm="*">Limpar tudo</button>':"")}
+$("#chips").onclick=e=>{const t=e.target.closest("[data-rm]");if(!t)return;const k=t.dataset.rm;
+ if(k==="*"){FAC.forEach(([x])=>F[x]="");F.tipo="";F.status="";F.launch=false;$("#ftp").value=""}else{F[k]=k==="launch"?false:"";if(k==="tipo")$("#ftp").value=""}F.hits=null;render()};
+$("#advb").onclick=()=>{$("#adv").open=!$("#adv").open};
+$("#adv").addEventListener("toggle",()=>$("#advb").setAttribute("aria-expanded",$("#adv").open));
+$("#q").addEventListener("input",()=>$("#qx").hidden=!$("#q").value);
+$("#qx").onclick=()=>{$("#q").value="";F.q="";F.hits=null;$("#qx").hidden=true;render();$("#q").focus()};
+/* tabela de todos os livros e seus campos */
+const tblCols=()=>{const ex=view==="explorar",c=[["title","Título",b=>label(b)],["sub","Subtítulo",b=>b.subtitle||""],["tipo","Tipo",b=>b.tipo==="revista"?"Revista":"Livro"],["authors","Autores",b=>sp(b.authors).map(nice).join(", ")],["editors","Organizadores",b=>sp(b.editors).map(nice).join(", ")],["translators","Tradutores",b=>sp(b.translators).map(nice).join(", ")],
+ ["publisher","Editora",b=>b.publisher||""],["edition","Edição",b=>b.edition||""],["pubDate","Data de publicação",b=>fmtPub(b.pubDate)],["pages","Páginas",b=>b.pages||""],["isbn","ISBN",b=>b.isbn||""],["language","Idioma",b=>b.language||""],["format","Formato",b=>b.format||""],
+ ["categories","Categorias",b=>sp(b.categories).join(", ")],["tags","Etiquetas",b=>[...new Set([...(b.tags||[]),...(b.ctags||[])])].join(", ")],["collection","Coleção",b=>[b.collection,b.series].filter(Boolean).join(" · ")],["city","Local",b=>b.city||""]];
+ if(ex)c.push(["lastp","Último preço",b=>{const l=priceOf("c",b).l;return l.length?money(l[l.length-1].price):""}],["inmy","No meu acervo",b=>ownedOf(b)?"Sim":""]);
+ else c.push(["shelf","Prateleira",b=>b.shelf||""],["status","Status",b=>b.wish||b.tipo==="revista"?"":status(b)],["price","Valor",b=>spent(b)?money(spent(b)):""],["bdate","Data da compra",b=>fmtD(pd(b))],["rating","Nota",b=>b.rating?"★".repeat(b.rating):""]);return c};
+let TS={k:"",d:1},TN=200;
+function tblHtml(l){const cols=tblCols(),rows=l.slice(),sc=cols.find(c=>c[0]===TS.k);if(sc)rows.sort((a,b)=>String(sc[2](a)).localeCompare(String(sc[2](b)),"pt-BR",{numeric:true})*TS.d);
+ return `<div class="tbw"><table class="tbl tbx"><thead><tr><th>Capa</th>${cols.map(([k,t])=>`<th aria-sort="${TS.k===k?(TS.d>0?"ascending":"descending"):"none"}"><button type="button" class="thb" data-ts="${k}">${t}${TS.k===k?(TS.d>0?" ▲":" ▼"):""}</button></th>`).join("")}</tr></thead>
+ <tbody>${rows.slice(0,TN).map(b=>`<tr data-id="${b.id}" tabindex="0"><td class="tc">${b.cover?`<img src="${esc(b.cover)}" referrerpolicy="no-referrer" loading="lazy" alt="">`:""}</td>${cols.map(([,,g])=>{const v=g(b);return `<td>${v===""||v==null?'<span class="m">—</span>':esc(v)}</td>`}).join("")}</tr>`).join("")}</tbody></table></div>
+ ${rows.length>TN?`<p><button type="button" id="tbmore">Mostrar mais (${rows.length-TN} restantes)</button></p>`:`<p class="m">${rows.length} linha(s). Clique no título da coluna para ordenar e em uma linha para ver os detalhes.</p>`}`}
+$("#main").addEventListener("click",e=>{const t=e.target.closest("[data-ts]");if(t){const k=t.dataset.ts;if(TS.k===k)TS.d=-TS.d;else{TS.k=k;TS.d=1}return render()}if(e.target.id==="tbmore"){TN+=200;render()}});
+$("#main").addEventListener("keydown",e=>{if(e.key==="Enter"){const r=e.target.closest("tr[data-id]");if(r)r.click()}});
 
 /* ---------- Login e inicialização ---------- */
 const authBox=(msg,err)=>{$("#auth").hidden=false;$("#am").textContent=msg||"";$("#ae").textContent=err||""};

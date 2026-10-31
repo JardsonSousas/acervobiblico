@@ -227,3 +227,33 @@ label.grp{cursor:pointer}
 .tbl th{position:sticky;top:0;background:var(--card);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:1}
 .tbl td{padding:4px 8px;border-top:1px solid var(--line);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tbl td.bl{background:rgba(179,55,47,.14);color:var(--bad);text-align:center}.tbl td.na{background:rgba(95,106,134,.10)}
+
+/* ---------- barra de ferramentas reorganizada ---------- */
+.tools button,.tools select,.tools input[type=search]{min-height:38px}
+.tl{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.tl2{align-items:center}
+.srch{position:relative;flex:3 1 300px}.srch input{width:100%;padding-right:34px}
+input[type=search]::-webkit-search-cancel-button{display:none}
+.icb{position:absolute;right:2px;top:50%;transform:translateY(-50%);border:0;background:none;padding:2px 10px;font-size:1.3rem;line-height:1;color:var(--mute)}
+.fl{display:flex;flex-direction:column;gap:2px;flex:1 1 170px;font-size:.75rem;color:var(--mute)}
+.fl select{width:100%;flex:none;color:var(--ink);font-size:.95rem}
+.tl .seg{margin-bottom:0}
+.badge{display:inline-block;background:var(--acc);color:var(--onacc);border-radius:99px;padding:0 7px;font-size:.75rem;margin-left:4px}
+#advb[aria-expanded=true]{border-color:var(--acc)}
+.advd>summary{display:none}
+.chips{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chips .chip{margin:0;padding:3px 12px;cursor:pointer;font-size:.85rem}
+.expbox{border:1px dashed var(--line);border-radius:10px;padding:8px 12px;background:var(--card)}
+.selbar{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;align-items:center}
+.fg{border:1px solid var(--line);border-radius:10px;margin:0;padding:8px 12px 12px;min-width:0}
+.fg legend{font:600 .8rem system-ui;color:var(--mute);padding:0 6px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px 12px}
+.facets{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))!important;align-items:start!important}
+#clr{justify-self:start;align-self:end}
+@media (max-width:640px){.fl{flex:1 1 140px}.tl .seg{width:100%}.tl .seg button{flex:1}}
+/* ---------- modo tabela ---------- */
+main.tabela{display:block}
+.tbx td.tc{width:44px}.tbx td.tc img{width:34px;aspect-ratio:2/3;object-fit:cover;border-radius:3px;display:block;background:var(--card)}
+.tbx tbody tr{cursor:pointer}.tbx tbody tr:hover td{background:rgba(36,95,143,.07)}.tbx tbody tr.sel td{background:rgba(36,95,143,.2)}
+.thb{border:0;background:none;padding:0;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.tbx td{max-width:260px}
