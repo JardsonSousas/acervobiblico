@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Acervo Bíblico</title>
+<meta name="theme-color" content="#245f8f">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.png" sizes="64x64" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -23,7 +28,7 @@
 
 <section id="tools" class="tools">
   <div class="tl">
-    <div class="srch"><input id="q" type="search" placeholder="Buscar por título, autor, ISBN ou etiqueta" aria-label="Buscar"><button id="qx" type="button" class="icb" aria-label="Limpar busca" hidden>×</button></div>
+    <div class="srch"><input id="q" type="search" placeholder="Buscar título, autor, ISBN…" aria-label="Buscar"><button id="qx" type="button" class="icb" aria-label="Limpar busca" hidden>×</button></div>
     <label class="fl">Tipo<select id="ftp"><option value="">Livros e revistas</option><option value="livro">Só livros</option><option value="revista">Só revistas</option></select></label>
     <label class="fl">Ordenar por<select id="so"><option value="cad">Cadastro: mais recentes primeiro</option><option value="cad_a">Cadastro: mais antigos primeiro</option><option value="title">Título A–Z</option><option value="title_d">Título Z–A</option><option value="author">Autor A–Z</option><option value="publisher">Editora A–Z</option><option value="year">Publicação: mais novos</option><option value="year_a">Publicação: mais antigos</option><option value="pdate">Compra: mais recentes</option><option value="pdate_a">Compra: mais antigas</option><option value="added">Data “adicionado em”: mais recentes</option><option value="added_a">Data “adicionado em”: mais antigos</option><option value="rating">Melhor avaliados</option></select></label>
     <div class="seg" id="vseg" role="group" aria-label="Modo de exibição"><button type="button" data-vm="grade">Grade</button><button type="button" data-vm="lista">Lista</button><button type="button" data-vm="tabela">Tabela</button></div>
